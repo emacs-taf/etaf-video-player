@@ -126,24 +126,39 @@ first line that carries video characters instead of by line number."
                  (cl-subseq lines (or start 0) (+ (or start 0) rows))
                  "\n"))))
 
-(defun etaf-video-player-tests--image-cell ()
-  "Return non-nil when the buffer publishes one image display cell."
+(defun etaf-video-player-tests--image-rows ()
+  "Return the canvas rows that publish an image display cell.
+Image mode crops one frame into one character row per display slice, so a
+cell counts when its display property is an image or a slice carrying one."
   (with-current-buffer "*Video Player*"
     (let ((text (buffer-string))
           (position 0)
-          found)
-      (while (and (< position (length text)) (null found))
-        (when (imagep (get-text-property position 'display text))
-          (setq found t))
+          rows)
+      (while (< position (length text))
+        (let ((display (get-text-property position 'display text)))
+          (when (or (imagep display)
+                    (and (consp display)
+                         (imagep (car (last display)))))
+            (setq rows (1+ (or rows 0)))))
         (setq position (or (next-property-change position text)
                            (length text))))
-      found)))
+      (or rows 0))))
+
+(defun etaf-video-player-tests--image-cell ()
+  "Return non-nil when the buffer publishes one image display cell."
+  (> (etaf-video-player-tests--image-rows) 0))
 
 (defmacro etaf-video-player-tests--with-graphics (&rest body)
-  "Run BODY as if the frame could show images at the frame's scale factor."
+  "Run BODY as if the frame could show images at the frame's scale factor.
+The batch frame is not a window-system frame, so it cannot render an SVG
+image; the fake therefore reports `display-graphic-p' as t (which is what the
+video Component asks before publishing raster frames) while SVG stays
+unavailable."
   (declare (indent 0))
   `(cl-letf (((symbol-function 'display-graphic-p)
-              (lambda (&optional _frame) t)))
+              (lambda (&optional _frame) t))
+             ((symbol-function 'image-type-available-p)
+              (lambda (type) (not (eq type 'svg)))))
      ,@body))
 
 (defmacro etaf-video-player-tests--with-retina (&rest body)
@@ -168,9 +183,11 @@ strings for the fixtures."
      ,@body))
 
 (ert-deftest etaf-video-player-tests-image-frames-publish-image-cells ()
-  "Image frames are published as one scaled JPEG display per frame.
+  "Image frames are published as one scaled JPEG display per row.
 A graphical frame makes the native Component decode at the canvas pixel
-size and publish an image cell instead of characters."
+size and crop the frame into one display slice per character row, so the
+canvas occupies exactly its declared rows and the transport bar below it
+stays inside the window."
   (etaf-video-player-tests--cleanup)
   (let ((log (etaf-video-player-tests--log)))
     (unwind-protect
@@ -185,6 +202,7 @@ size and publish an image cell instead of characters."
                     (lambda () (>= (plist-get (etaf-video-player-tests--state) :presented) 1))))
            (should (eq 'image (plist-get (etaf-video-player-tests--state) :render-mode)))
            (should (etaf-video-player-tests--image-cell))
+           (should (= 4 (etaf-video-player-tests--image-rows)))
            (let* ((arguments (car (last (etaf-video-player-tests--runs log))))
                   (scale (cl-find-if (lambda (argument)
                                        (string-prefix-p "scale=" argument))

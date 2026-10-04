@@ -27,6 +27,11 @@ character-only terminal player, use the companion `etaf-ascii-video`.
   shuffle are one key away, and a finished item advances automatically.
 - Play, pause, single frame stepping, seeking, 0.5x to 8x rates, volume keys
   and a sound toggle.
+- Dark and light three-pane layouts with consistent SVG controls, readable
+  secondary text, and a retained volume/seek slider. Narrow windows hide the
+  side panes without changing the control identities.
+- A 24fps presentation cap by default, with automatic Retina resolution;
+  `etaf-video-player-display-fps` changes the cap for new players.
 - Latest-frame-wins display: when decoding outruns display, older frames are
   dropped instead of replayed as a backlog.
 - `etaf-video-player-state` exposes the live player as plain data for scripts
@@ -39,7 +44,7 @@ character-only terminal player, use the companion `etaf-ascii-video`.
 | Requirement | Why | Check |
 | --- | --- | --- |
 | Emacs 29.1 or newer | the ETAF runtime | `emacs --version` |
-| `etaf`, `ebox`, `ecss` | the framework; each root entry must be on `load-path` | every checkout is readable |
+| `etaf`, `etaf-ui`, `ebox`, `ecss` | the framework; each root entry must be on `load-path` | every checkout is readable |
 | ffmpeg | decoding and scaling | `ffmpeg -version` |
 | ffprobe | duration, frame rate and video size | `ffprobe -version` |
 | ffplay | sound | `ffplay -version` |
@@ -56,6 +61,7 @@ variables documented in ETAF's manual.
 (add-to-list 'load-path "/path/to/ecss")
 (add-to-list 'load-path "/path/to/ebox")
 (add-to-list 'load-path "/path/to/etaf")
+(add-to-list 'load-path "/path/to/etaf-ui")
 (add-to-list 'load-path "/path/to/etaf-video-player")
 (require 'etaf-video-player)
 
@@ -88,6 +94,7 @@ variables documented in ETAF's manual.
 | `o` / `u` / `d` | open a file / open a URL / replay the built-in demo |
 | `>` / `<` | next / previous playlist item |
 | `l` / `s` | cycle loop mode / toggle shuffle |
+| `T` | switch dark/light appearance |
 | `?` / `q` | help / close |
 
 ## Checks

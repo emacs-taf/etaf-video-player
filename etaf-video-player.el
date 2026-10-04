@@ -3,7 +3,7 @@
 ;; SPDX-License-Identifier: GPL-3.0-or-later
 ;; Author: ETAF contributors
 ;; Version: 0.1.0
-;; Package-Requires: ((emacs "29.1") (etaf "0.2.1"))
+;; Package-Requires: ((emacs "29.1") (etaf "0.2.1") (etaf-ui "0.1.0"))
 ;; Keywords: multimedia, ui
 ;; URL: https://gitea.vhkd.top/geekinney/etaf-video-player
 
@@ -93,7 +93,7 @@
 ;; Function: etaf-video-player-set-speed (speed)
 ;; Set the playback rate to SPEED, a positive number.
 ;; The session restarts at the current position; the display rate stays
-;; `etaf-video-display-fps' and extra decoded frames are dropped.
+;; `etaf-video-player-display-fps' and extra decoded frames are dropped.
 ;;
 ;; Function: etaf-video-player-set-volume (volume)
 ;; Set the audio volume to VOLUME, from 0 to 100.
@@ -111,8 +111,9 @@
 ;;
 ;; Function: etaf-video-player-fit ()
 ;; Fit the current player's canvas to the window showing it.
-;; One row is reserved for the status line; the window is refitted through
-;; ETAF before the grid changes.
+;; Eight rows are reserved for the header, transport and footer. The playlist
+;; appears from 100 columns, the details pane from 150; their widths are
+;; subtracted from the canvas budget.
 ;;
 ;; Function: etaf-video-player-next ()
 ;;;###autoload (autoload 'etaf-video-player-next "etaf-video-player" nil t)
@@ -172,6 +173,15 @@
 ;; Nil derives it from `frame-scale-factor' (2 on Retina), so frames are
 ;; produced at device resolution instead of being upscaled and blurred;
 ;; 1 forces logical-pixel frames.
+;;
+;; Variable: etaf-video-player-display-fps
+;; Maximum presentation rate for new players, default 24 frames per second.
+;; This cap does not lower the source resolution or the device pixel ratio;
+;; it is not a guarantee of the achieved frame rate.
+;;
+;; Variable: etaf-video-player-theme-mode
+;; New-player appearance: `dark' (default) or `light', independent of Emacs's
+;; theme. Press T to switch the running player; the canvas stays dark.
 ;;
 ;; Variable: etaf-video-player-grid-presets
 ;; Canvas widths reached by the `1' to `4' keys.

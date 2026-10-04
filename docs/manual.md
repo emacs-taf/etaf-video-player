@@ -17,12 +17,22 @@ Runtime.
 The player buffer hides its cursor, so no cursor frame flashes around the
 picture.
 
-The window is a themed shell: a header with the live playback status, the
-video canvas fitted to the window and kept at its original aspect ratio, a
-progress bar you can click or drag to seek, and a transport row with
+The window is a themed shell: a one-row title padding, a header with the live
+playback status, a playlist column and a details column that appear when the
+published viewport is wide enough, the video canvas in the stage between
+them, a progress bar you can click or drag to seek, and a transport row with
 play/pause, ±5 s, volume and mute controls.  The play/pause and sound glyphs
 change with the state, and the progress bar moves through retained geometry
 instead of republishing the View.
+
+The canvas is measured, not guessed: after every layout change the
+application reads the framework's published viewport and the stage Host's
+committed size (`etaf-host-ref-size`), keeps the source aspect ratio, and
+sizes the canvas to fit.  `F` re-runs that fit.  Because Emacs reserves the
+last character cell of each line and any partial bottom line, the player
+adopts the frame background color with the application surface color while
+it is open and restores the previous value on close, so no foreign strip
+remains at the window edges.
 
 Playback starts immediately. `SPC` pauses and resumes, `n` pauses and presents
 exactly one more frame, `f` and `b` seek five seconds, and `+`/`-` step through
@@ -34,9 +44,9 @@ paused. When the file ends the last picture stays visible and the status line
 shows `ended`; `SPC` replays from the start.
 
 The producer's own frame rate may be lower or higher than
-`etaf-video-display-fps` (30 by default). Display always claims only the newest
-complete frame, so a slower display drops frames instead of replaying a
-backlog; the status line's `dropped` counter reports how many. The rate shown
+`etaf-video-player-display-fps` (24 by default). Display always claims only
+the newest complete frame, so a slower display drops frames instead of
+replaying a backlog; `etaf-video-player-state` reports the dropped count. The rate shown
 in the status line is the number of frames presented in the last sample
 window, not the timer rate, so a canvas too large for the display cost reports
 a lower number instead of a hopeful one.
@@ -59,8 +69,11 @@ Decoding, scaling and publication belong to the native `etaf-video` Component,
 which this application places in a layout with `:mode 'image`; see the ETAF
 manual for the full contract.  On a graphical frame ffmpeg emits one JPEG per
 frame at the canvas pixel size and the Component publishes it as an image
-display on a single character cell, so frame cost does not grow with the
-number of cells and a full-window canvas stays smooth.  On a terminal the
+display shared by one slice per canvas row. Neighbouring text therefore
+keeps its normal line height. Publication updates the retained Text inside
+the canvas, leaving its geometry and the surrounding controls in place.
+Achieved frame rate depends on the machine, canvas and workload; the
+presentation cap is not a performance guarantee.  On a terminal the
 Component falls back to a density-ramp canvas (`etaf-video-player-state`
 reports `:render-mode 'ascii`), so the same command still works over SSH.
 
@@ -93,8 +106,8 @@ pause, and follows `a` and the volume keys:
 `etaf-video-player-volume` (default 100) and `etaf-video-player-audio`
 (default t) set the initial state for new players; `:volume` and `:audio` in a
 source plist override them for one session.  A source that reports no audio
-stream stays silent, and so does a missing ffplay — the status line's `mute`
-or `sound` word reports the requested state.  ffplay is part of the normal
+stream stays silent, and so does a missing ffplay. The sound icon and the
+details pane report the requested state, not proof of audible output.  ffplay is part of the normal
 ffmpeg installation; `etaf-video-ffplay-program` points at another one.
 
 ## Keys
@@ -112,10 +125,13 @@ ffmpeg installation; `etaf-video-ffplay-program` points at another one.
 | `o`, `u`, `d` | open a file / open a URL / demo |
 | `>`, `<` | next / previous playlist item |
 | `l`, `s` | loop off/list/one, shuffle |
+| `T` | switch dark/light appearance |
 | `?`, `q` | help / close |
 
-`F` and `etaf-video-player-fit` reserve one row for the status line and refit
-the ETAF viewport before changing the grid. The same fitting runs
+`F` and `etaf-video-player-fit` reserve eight rows for the header, transport
+and footer. From 100 columns the playlist occupies 30 columns; from 150
+columns the details pane occupies another 28. The remaining space determines
+the aspect-preserving canvas size. The same fitting runs
 automatically through `window-size-change-functions` when the window changes
 size, so a resized frame keeps a canvas that fits.
 
@@ -147,7 +163,8 @@ detached plist; the interesting keys are `:playing`, `:position`, `:duration`,
 | `etaf-video-player-volume` | initial volume for new players, 0 to 100 |
 | `etaf-video-player-device-pixel-ratio` | image device pixel ratio; nil derives it from the frame |
 | `etaf-video-player-grid-presets` | character to canvas width, used by `1`-`4` |
-| `etaf-video-display-fps` | display timer rate, default 30 (ETAF) |
+| `etaf-video-player-display-fps` | presentation cap for new players, default 24 |
+| `etaf-video-player-theme-mode` | `dark` (default) or `light`; T switches the running player |
 | `etaf-video-ffmpeg-program` | ffmpeg name or path; use a wrapper to add decoder options (ETAF) |
 | `etaf-video-ffprobe-program` | ffprobe name or path; optional (ETAF) |
 | `etaf-video-ffplay-program` | ffplay name or path used for sound (ETAF) |
@@ -165,8 +182,8 @@ arguments unchanged. The audio sidecar receives
 - `ffmpeg is not available`: install ffmpeg or set
   `etaf-video-ffmpeg-program` to its absolute path.
 - No sound: install ffplay or set `etaf-video-ffplay-program`; check the
-  volume keys and that the source has an audio stream.  The status line shows
-  `sound` or `mute` for the requested state.
+  volume keys and that the source has an audio stream. The sound icon shows
+  the requested state; it does not prove that a sidecar is producing sound.
 - `Video file is not readable`: the path is wrong or the file is not a local
   readable file; use `etaf-video-player-open-url` for network streams.
 - A URL does not play: check the network and, behind a proxy, `ffmpeg`'s

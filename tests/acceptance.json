@@ -13,7 +13,7 @@
     {
       "name": "etaf-video-player-tests-image-frames-publish-image-cells",
       "file": "tests/etaf-video-player-tests.el",
-      "purpose": "A graphical frame makes the native Component publish one scaled JPEG image cell per frame with the documented mjpeg arguments."
+      "purpose": "A graphical frame makes the native Component publish one scaled JPEG cropped into one display slice per canvas row, so the canvas occupies exactly its rows and the controls below it stay visible."
     },
     {
       "name": "etaf-video-player-tests-retina-frames-scale-by-device-pixel-ratio",

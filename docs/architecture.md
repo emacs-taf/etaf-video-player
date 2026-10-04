@@ -19,22 +19,36 @@ internal.
 ## Data flow
 
 1. `etaf-video-player-open` normalizes and probes the source once through
-   `etaf-video-source-info`, fits a canvas to the selected window and mounts a
-   View with the native `etaf-video` Component (`:mode 'image`) plus a status
-   text Host.
-2. The Component owns the playback session: ffmpeg decodes at the device pixel
+   `etaf-video-source-info`, displays the buffer, and mounts a View with the
+   native `etaf-video` Component (`:mode 'image`) plus three status text Hosts.
+   The shell is a fixed plane of absolute layers: playlist, stage, details,
+   header, transport and footer.  Layer panes are what the framework's
+   retained routes require; a frame then repaints the canvas plane instead of
+   re-composing the surrounding application.
+2. After the first publication the application reads the renderer's own
+   viewport (`etaf-runtime-viewport`) and the stage Host's committed size
+   (`etaf-host-ref-size`), then sizes the canvas to the measured stage and
+   positions it there.  The same sync runs after every `etaf-refit`, so a
+   resize re-measures instead of re-deriving geometry from window columns.
+3. The Component owns the playback session: ffmpeg decodes at the device pixel
    size, the session keeps only the newest complete frame, and each displayed
-   frame is published through `etaf-runtime-update-host-content` as one image
-   cell.  The optional ffplay sidecar follows the same play/pause state.
-3. The application refreshes the status Host from `etaf-video-state` four
-   times per second, so the frame path stays free of status work.
-4. Controls are declarative or imperative depending on the fact: canvas size,
-   rate, audio and volume are View props (changing a prop restarts or retunes
-   the session at the current position), while play/pause, step and seek call
-   the Component's handle functions.
-5. `etaf-video-player-close` cancels the status timer and unmounts the Runtime,
-   which destroys the session and its sidecar. A failed open runs the same
-   teardown, so no partial player survives a `user-error`.
+   frame is published through `etaf-runtime-update-host-content` as image
+   slices.  The optional ffplay sidecar follows the same play/pause state.
+4. The application refreshes the status Hosts from `etaf-video-state` four
+   times per second.  The texts live in plain player fields and reach their
+   Hosts through one explicit retained content update; a reactive source write
+   would re-render the consuming Component and republish the tree.  The
+   progress fill stays a controlled range value because the range moves it
+   through its own retained geometry binding.
+5. Controls are declarative or imperative depending on the fact: canvas size
+   and rate are View props, volume, sound and speed are shared reactive
+   sources the Component reads in its playback effect, and play/pause, step
+   and seek call the Component's handle functions.
+6. `etaf-video-player-close` cancels the status timer, restores the frame
+   background it adopted, and unmounts the Runtime, which destroys the session
+   and its sidecar. A failed open runs the same teardown, so no partial player
+   survives a `user-error`.  Killing the buffer runs the same cleanup through
+   `kill-buffer-hook`.
 
 ## Invariants
 
@@ -47,6 +61,19 @@ internal.
   and the image is drawn at `1 / ratio`, so the window system never upscales
   the picture.  `etaf-video-player-device-pixel-ratio` overrides the frame's
   `frame-scale-factor`, and the change applies on the next session restart.
+- **Canvas geometry is measured.**  The canvas size comes from the stage
+  Host's committed border-box size (`etaf-host-ref-size`) and the source
+  aspect ratio; the pane lanes and responsive breakpoints come from the
+  published viewport (`etaf-runtime-viewport`).  The application never
+  estimates layout from window character columns.
+- **The window edges belong to the application.**  Emacs reserves the last
+  character cell of every line and any partial bottom line, and buffer text
+  cannot paint those pixels.  While a player owns the frame, the application
+  adopts the frame background color (saving and restoring the previous value)
+  and every layout lane's outermost surface uses that same color, so the
+  reserved pixels read as the application surface instead of the user's frame
+  background.  The buffer's default face is remapped to the same color for
+  sub-cell remainders inside the layout.
 - **Probe once.** `etaf-video-source-info` returns authoritative metadata that
   the Component accepts as its source, so resizing or restarting a video does
   not repeat the ffprobe call.
@@ -63,24 +90,32 @@ internal.
 
 ## Measured behavior
 
-The player's frame cost is the native Component's cost.  Image frames publish
-one image cell per frame, so publication does not grow with the number of
-cells.  On the reference machine (M-series Mac, 150x44 full-window canvas,
-1080p source, foreground playback) a 68 s clip runs with Emacs at about 55-60%
-of one core and ffmpeg at 45-70% in 2x image mode, and with Emacs unchanged
-and ffmpeg at 16-33% in 1x image mode: at real speed the per-frame retained
-publication and redisplay are the bottleneck, not the decoded resolution, and
-a smaller decoded pixel size relieves only ffmpeg.  The Component flushes the
-previous frame after publishing a new one and on teardown, because Emacs
-caches images by spec; a 40 s 1080p session plateaus at about 700 MB of RSS
-instead of growing linearly.
+Frame cost is the native Component's cost plus the retained publication of the
+canvas plane.  The maintained measurements are the workspace performance
+scenarios `video-player.frame`, `video-player.volume` and `video-player.mute`
+(`benchmarks/performance-scenarios.el`), run with `--mode gui` on a real clip
+through `TAF_VIDEO_SOURCE`; they record warmups, the slowest sample and the
+focus conditions, so no number here substitutes for a fresh run.  A frame is
+one retained content update of the canvas Host: it repaints the canvas plane
+and does not re-compose the surrounding panes.  The status Hosts are refreshed
+four times per second through the same retained content boundary, and the
+progress fill moves through the range's retained geometry.
 
-Falling back to the density ramp is the expensive mode.  A full-window mono
-canvas runs Emacs at about 82-96% of one core, and CPU profiling attributes
-about 31% of that to `ebox--flex-item-slot-footprint-safe-p` calling
-`ebox--string-pixel-width` to re-measure the whole screen's text on every
-frame.  The first knobs are `etaf-video-display-fps` (30 to 24 or 15) and the
-canvas size; lowering the device pixel ratio only relieves ffmpeg.
+Two framework conditions decide whether those retained routes are available,
+and both are observable per publication:
 
-The status line refreshes four times per second from plain state and adds no
-work to the frame path.
+- `ebox-update-prepare-report` must report `ready` for the canvas content
+  update.  It reports `unsupported` when the canvas placement is not an inline
+  winner, which is why the Component declares `:position`/`:left`/`:top` on
+  its own canvas node and why the application places the canvas as one
+  root-level absolute plane using the measured stage.
+- `ebox-buffer-update-report` should keep a panel update scoped.  A publication
+  that falls back to an owner re-render reconciles the whole tree; the HUD
+  texts therefore use explicit retained content updates instead of reactive
+  source writes.
+
+Machine load changes the absolute frame rate, so compare runs with the same
+load and record the load with the evidence.  The presentation cap
+(`etaf-video-player-display-fps`, 24 by default) is a pacing limit, not a
+promise: the achieved rate is reported in the player state and drops when
+presentation cannot keep up.
