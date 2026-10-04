@@ -64,9 +64,23 @@ internal.
 ## Measured behavior
 
 The player's frame cost is the native Component's cost.  Image frames publish
-one JPEG image cell per frame, so the cost does not grow with the number of
-cells; a GUI session at a full-window canvas measured about 8.5 ms per frame
-and 22-26 presented frames per second on the reference machine, including JPEG
-decoding and redisplay.  Terminal frames fall back to the density ramp, whose
-publication is millisecond-scale at a 160x45 canvas.  The status line refreshes
-four times per second from plain state and adds no work to the frame path.
+one image cell per frame, so publication does not grow with the number of
+cells.  On the reference machine (M-series Mac, 150x44 full-window canvas,
+1080p source, foreground playback) a 68 s clip runs with Emacs at about 55-60%
+of one core and ffmpeg at 45-70% in 2x image mode, and with Emacs unchanged
+and ffmpeg at 16-33% in 1x image mode: at real speed the per-frame retained
+publication and redisplay are the bottleneck, not the decoded resolution, and
+a smaller decoded pixel size relieves only ffmpeg.  The Component flushes the
+previous frame after publishing a new one and on teardown, because Emacs
+caches images by spec; a 40 s 1080p session plateaus at about 700 MB of RSS
+instead of growing linearly.
+
+Falling back to the density ramp is the expensive mode.  A full-window mono
+canvas runs Emacs at about 82-96% of one core, and CPU profiling attributes
+about 31% of that to `ebox--flex-item-slot-footprint-safe-p` calling
+`ebox--string-pixel-width` to re-measure the whole screen's text on every
+frame.  The first knobs are `etaf-video-display-fps` (30 to 24 or 15) and the
+canvas size; lowering the device pixel ratio only relieves ffmpeg.
+
+The status line refreshes four times per second from plain state and adds no
+work to the frame path.
