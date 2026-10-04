@@ -163,45 +163,61 @@ size and publish an image cell instead of characters."
            (should (eq 'image (plist-get (etaf-video-player-tests--state) :render-mode)))
            (with-current-buffer "*Video Player*"
              (should (imagep (get-text-property 0 'display (buffer-string)))))
-           (let ((arguments (car (last (etaf-video-player-tests--runs log)))))
+           (let* ((arguments (car (last (etaf-video-player-tests--runs log))))
+                  (scale (cl-find-if (lambda (argument)
+                                       (string-prefix-p "scale=" argument))
+                                     arguments)))
              (should (equal "mjpeg" (etaf-video-player-tests--argument arguments "-c:v")))
              (should (equal "3" (etaf-video-player-tests--argument arguments "-q:v")))
-             (should (cl-some (lambda (argument)
-                                (string-prefix-p "scale=16:4" argument))
-                              arguments)))
+             (should (string-match-p "\\`scale=[0-9]+:[0-9]+:flags=lanczos\\'" scale)))
            (etaf-video-player-close)))
       (ignore-errors (delete-file log))
       (etaf-video-player-tests--cleanup))))
 
+(defun etaf-video-player-tests--scale-size (log)
+  "Return the last recorded `scale=W:H' producer size in LOG as (W . H)."
+  (let* ((arguments (car (last (etaf-video-player-tests--runs log))))
+         (scale (cl-find-if (lambda (argument)
+                              (string-prefix-p "scale=" argument))
+                            arguments)))
+    (when (and scale
+               (string-match "\\`scale=\\([0-9]+\\):\\([0-9]+\\)" scale))
+      (cons (string-to-number (match-string 1 scale))
+            (string-to-number (match-string 2 scale))))))
+
 (ert-deftest etaf-video-player-tests-retina-frames-scale-by-device-pixel-ratio ()
-  "Retina frames are produced at the device pixel ratio.
+  "Retina frames are produced at twice the logical canvas.
 The producer receives device-resolution pixels and the image is drawn back
 down at one over the ratio, so the window system never upscales the picture."
   (etaf-video-player-tests--cleanup)
-  (let* ((log (etaf-video-player-tests--log))
-         (columns 16)
-         (rows 4)
-         (char-width (frame-char-width))
-         (char-height (frame-char-height)))
+  (let ((log (etaf-video-player-tests--log))
+        (columns 16)
+        (rows 4)
+        logical)
     (unwind-protect
         (etaf-video-player-tests--with-fixture
          log
          (list "FAKE_FFMPEG_FRAMES=200" "FAKE_FFMPEG_INTERVAL=0.02"
                "FAKE_FFPROBE_DURATION=4.0" "FAKE_FFPROBE_FPS=50/1")
+         ;; The same environment without the Retina factor is the baseline.
+         (etaf-video-player-tests--with-graphics
+           (etaf-video-player-open
+            (list :file etaf-video-player-tests--input
+                  :columns columns :rows rows))
+           (should (etaf-video-player-tests--wait
+                    (lambda () (etaf-video-player-tests--scale-size log))))
+           (setq logical (etaf-video-player-tests--scale-size log))
+           (etaf-video-player-close))
          (etaf-video-player-tests--with-retina
            (etaf-video-player-open
             (list :file etaf-video-player-tests--input
                   :columns columns :rows rows))
            (should (etaf-video-player-tests--wait
-                    (lambda () (>= (plist-get (etaf-video-player-tests--state) :presented) 1))))
-           (let ((expected (format "scale=%d:%d:flags=lanczos"
-                                   (* columns char-width 2)
-                                   (* rows char-height 2))))
-             (should (etaf-video-player-tests--wait
-                      (lambda ()
-                        (cl-some (lambda (arguments)
-                                   (member expected arguments))
-                                 (etaf-video-player-tests--runs log))))))
+                    (lambda ()
+                      (let ((size (etaf-video-player-tests--scale-size log)))
+                        (and size
+                             (= (car size) (* 2 (car logical)))
+                             (= (cdr size) (* 2 (cdr logical))))))))
            (etaf-video-player-close)))
       (ignore-errors (delete-file log))
       (etaf-video-player-tests--cleanup))))

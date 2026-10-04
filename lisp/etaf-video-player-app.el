@@ -264,6 +264,18 @@ The retained refs returned here are closed over by the application View."
        (text :id "hud" :ref etaf-video-player--hud-ref
              (expr (etaf-value (etaf-video-player--player-hud-text-ref player))))))))
 
+(defun etaf-video-player--show (buffer)
+  "Show BUFFER in the selected window before mounting its View.
+The native video Component measures its image canvas from the displayed
+Host, so the buffer must already be on screen when the first session is
+built; otherwise image frames are sized from font metrics and may exceed the
+canvas."
+  (let ((display-buffer-overriding-action '((display-buffer-same-window))))
+    (pop-to-buffer buffer))
+  (when-let* ((shown (get-buffer-window buffer t)))
+    (set-window-hscroll shown 0))
+  buffer)
+
 (defun etaf-video-player--window-size-changed (frame)
   "Refit every video player shown on FRAME after a window resize."
   (dolist (window (window-list frame))
@@ -379,14 +391,11 @@ unsupported sources signal `user-error' before any process starts."
                                                           (make-display-table)))))
                             (set-display-table-slot table 'truncation ?\s)
                             table))
-              (use-local-map etaf-video-player-mode-map)
-              (etaf-mount buffer (etaf-video-player--view player)
-                          (list :viewport-width (window-body-width window t)
-                                :viewport-height (window-body-height window))))
-            (let ((display-buffer-overriding-action '((display-buffer-same-window))))
-              (pop-to-buffer buffer))
-            (when-let* ((shown (get-buffer-window buffer t)))
-              (set-window-hscroll shown 0))
+              (use-local-map etaf-video-player-mode-map))
+            (etaf-video-player--show buffer)
+            (etaf-mount buffer (etaf-video-player--view player)
+                        (list :viewport-width (window-body-width window t)
+                              :viewport-height (window-body-height window)))
             (etaf-video-player--install-size-hook)
             (setf (etaf-video-player--player-hud-timer player)
                   (run-at-time 0.0 etaf-video-player--hud-interval
