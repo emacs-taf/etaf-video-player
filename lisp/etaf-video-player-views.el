@@ -54,10 +54,11 @@ a renderer fact rather than a window-chrome estimate."
   (list :background-color (etaf-video-player-color :hover)))
 
 (etaf-define-component etaf-video-player--view-header
-    (&key title status-ref status compact)
+    (&key title status-ref status compact position left top width height)
   "Render the title and retained status in one stretched header row."
   :view
-  (flex :position 'relative :width 'stretch :height '(lh 1) :align-items 'center
+  (flex :position (or position 'static) :left (or left '(px 0)) :top (or top '(lh 0))
+        :width (or width 'stretch) :height (or height '(lh 1)) :align-items 'center
         :gap '((lh 0) (ch 1)) :padding '((lh 0) (ch 2))
         :background-color (etaf-video-player-color :surface)
     (etaf-ui-icon :if (not compact) :name 'disc :set 'svg :size 0.9 :min-width 2
@@ -100,11 +101,12 @@ a renderer fact rather than a window-chrome estimate."
       (text (expr duration)))))
 
 (etaf-define-component etaf-video-player--view-playlist
-    (&key count entries active summary on-press)
+    (&key count entries active summary on-press position left top width height)
   "Render the playlist column inside the responsive body row."
   :view
-  (flex :width etaf-video-player--sidebar-width :height 'stretch
-        :flex-direction 'column :padding '((lh 1) (ch 1))
+  (flex :position (or position 'static) :left (or left '(px 0)) :top (or top '(lh 0))
+        :width (or width etaf-video-player--sidebar-width) :height (or height 'stretch)
+        :flex-direction 'column :overflow 'hidden :padding '((lh 1) (ch 1))
         :background-color (etaf-video-player-color :surface)
     (flex :height '(lh 1) :gap '((lh 0) (ch 1)) :align-items 'center
       (etaf-ui-icon :name 'list :set 'svg :size 0.9 :min-width 2
@@ -123,10 +125,12 @@ a renderer fact rather than a window-chrome estimate."
       (text (expr summary)))))
 
 (etaf-define-component etaf-video-player--view-details
-    (&key title source meta keys speed audio loop shuffle on-toggle-theme)
+    (&key title source meta keys speed audio loop shuffle on-toggle-theme
+          position left top width height)
   "Render source information and retained playback settings."
   :view
-  (flex :width etaf-video-player--aside-width :height 'stretch
+  (flex :position (or position 'static) :left (or left '(px 0)) :top (or top '(lh 0))
+        :width (or width etaf-video-player--aside-width) :height (or height 'stretch)
         :flex-direction 'column :overflow 'hidden
         :padding '((lh 1) (ch 1))
         :background-color (etaf-video-player-color :surface)
@@ -236,10 +240,12 @@ a renderer fact rather than a window-chrome estimate."
     (&key playing-ref title meta time time-ref volume-ref volume-text audio-ref
           progress progress-fill-ref speed loop shuffle volume
           on-toggle on-previous on-next on-forward on-backward on-seek
-          on-cycle-speed on-toggle-loop on-toggle-shuffle on-toggle-audio on-volume compact)
+          on-cycle-speed on-toggle-loop on-toggle-shuffle on-toggle-audio on-volume compact
+          position left top width height)
   "Render a fixed-height transport panel with independently retained controls."
   :view
-  (box :position 'relative :width 'stretch :height (list 'lh etaf-video-player--bar-rows)
+  (box :position (or position 'relative) :left (or left '(px 0)) :top (or top '(lh 0))
+       :width (or width 'stretch) :height (or height (list 'lh etaf-video-player--bar-rows))
        :padding '((lh 1) (ch 2)) :background-color (etaf-video-player-color :surface)
        :border-top (etaf-video-player--border 'top (etaf-video-player-color :line))
     (grid :width 'stretch :height '(lh 3)
@@ -272,10 +278,12 @@ a renderer fact rather than a window-chrome estimate."
           (etaf-video-player--view-control :icon 'shuffle :value shuffle :ref 'video-shuffle
             :help "随机播放 (s)" :on-press on-toggle-shuffle))))))
 
-(etaf-define-component etaf-video-player--view-footer (&key hints)
+(etaf-define-component etaf-video-player--view-footer
+    (&key hints position left top width height)
   "Render the fixed bottom hint row."
   :view
-  (box :width 'stretch :height '(lh 1)
+  (box :position (or position 'static) :left (or left '(px 0)) :top (or top '(lh 0))
+       :width (or width 'stretch) :height (or height '(lh 1))
        :text-align 'center :overflow 'hidden :font-size 16
        :background-color (etaf-video-player-color :surface)
        :color (etaf-video-player-color :muted)

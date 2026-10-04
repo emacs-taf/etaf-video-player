@@ -605,40 +605,38 @@ and the play/pause icon repaint without a View rebuild."
        (box :position 'absolute :left '(px 0) :top '(lh 0)
             :width (list 'px viewport-width) :height '(lh 1)
             :background-color (etaf-video-player-color :surface))
-       (box :position 'absolute :left '(px 0) :top '(lh 1)
-            :width (list 'px viewport-width) :height '(lh 1)
-         (etaf-video-player--view-header
-          :title (etaf-video-player--title spec)
-          :status-ref etaf-video-player--hud-ref
-          :status (etaf-video-player--player-hud-text player)
-          :compact (not sidebar)))
-       (box :position 'absolute :left '(ch 0) :top '(lh 2)
-            :width '(ch 30) :height (list 'lh body-rows)
-            :overflow 'hidden
-         (etaf-video-player--view-playlist
-          :if sidebar :count (length queue)
-          :entries (etaf-video-player--playlist-entries player start visible)
-          :active index
-          :summary (if (> (length queue) visible)
-                       (format "%d–%d / %d" (1+ start) (+ start visible)
-                               (length queue))
-                     (format "%d 个视频" (length queue)))
-          :on-press (lambda (position) (etaf-video-player-play-index position))))
+       (etaf-video-player--view-header
+        :position 'absolute :left '(px 0) :top '(lh 1)
+        :width (list 'px viewport-width) :height '(lh 1)
+        :title (etaf-video-player--title spec)
+        :status-ref etaf-video-player--hud-ref
+        :status (etaf-video-player--player-hud-text player)
+        :compact (not sidebar))
+       (etaf-video-player--view-playlist
+        :if sidebar :position 'absolute :left '(ch 0) :top '(lh 2)
+        :width '(ch 30) :height (list 'lh body-rows)
+        :count (length queue)
+        :entries (etaf-video-player--playlist-entries player start visible)
+        :active index
+        :summary (if (> (length queue) visible)
+                     (format "%d–%d / %d" (1+ start) (+ start visible)
+                             (length queue))
+                   (format "%d 个视频" (length queue)))
+        :on-press (lambda (position) (etaf-video-player-play-index position)))
        (box :position 'absolute :left stage-left :top '(lh 2)
             :width stage-width :height (list 'lh body-rows)
             :overflow 'hidden :background-color (etaf-video-player-color :surface)
             :ref etaf-video-player--stage-ref
             :id (symbol-name etaf-video-player--stage-ref))
-       (box :if details :position 'absolute :left details-left :top '(lh 2)
-            :width '(ch 28) :height (list 'lh body-rows)
-            :overflow 'hidden
-         (etaf-video-player--view-details
-          :speed speed :audio audio :loop loop :shuffle shuffle
-          :title (etaf-video-player--title spec)
-          :source (etaf-video-player--source-label spec)
-          :meta (etaf-video-player--details-meta player spec)
-          :keys etaf-video-player--key-hints
-          :on-toggle-theme (lambda () (etaf-video-player--toggle-theme))))
+       (etaf-video-player--view-details
+        :if details :position 'absolute :left details-left :top '(lh 2)
+        :width '(ch 28) :height (list 'lh body-rows)
+        :speed speed :audio audio :loop loop :shuffle shuffle
+        :title (etaf-video-player--title spec)
+        :source (etaf-video-player--source-label spec)
+        :meta (etaf-video-player--details-meta player spec)
+        :keys etaf-video-player--key-hints
+        :on-toggle-theme (lambda () (etaf-video-player--toggle-theme)))
        ;; The canvas is a layer of its own; its offset is the measured stage
        ;; fact, not a chrome estimate.
        (etaf-video :position 'absolute
@@ -656,9 +654,9 @@ and the play/pause icon repaint without a View rebuild."
                    :autoplay t
                    :handle handle
                    :on-press (lambda () (etaf-video-toggle-playback handle)))
-       (box :position 'absolute :left '(px 0) :top (list 'lh transport-top)
-            :width (list 'px viewport-width) :height (list 'lh etaf-video-player--bar-rows)
-         (etaf-video-player--view-transport
+       (etaf-video-player--view-transport
+        :position 'absolute :left '(px 0) :top (list 'lh transport-top)
+        :width (list 'px viewport-width) :height (list 'lh etaf-video-player--bar-rows)
         :progress (etaf-video-player--player-progress-ref player)
         :playing-ref (etaf-video-player--player-playing-ref player)
         :title (etaf-video-player--title spec)
@@ -691,10 +689,11 @@ and the play/pause icon repaint without a View rebuild."
                             (not (etaf-video-player--player-audio player))))
         :on-volume (lambda (percent) (etaf-video-player-set-volume percent))
         :on-seek (lambda (percent) (etaf-video-player--player-seek-percent player percent))
-        :compact (not sidebar)))
-       (box :position 'absolute :left '(px 0) :top (list 'lh footer-top)
-            :width (list 'px viewport-width) :height '(lh 1)
-         (etaf-video-player--view-footer :hints etaf-video-player--hint-line))
+        :compact (not sidebar))
+       (etaf-video-player--view-footer
+        :position 'absolute :left '(px 0) :top (list 'lh footer-top)
+        :width (list 'px viewport-width) :height '(lh 1)
+        :hints etaf-video-player--hint-line)
        (box :position 'absolute :left '(px 0) :top (list 'lh (1+ footer-top))
             :width (list 'px viewport-width) :height '(lh 1)
             :background-color (etaf-video-player-color :surface))))))
