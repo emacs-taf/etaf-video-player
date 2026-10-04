@@ -167,12 +167,13 @@ status line."
 
 (defun etaf-video-player--window-grid (window aspect)
   "Return the (COLUMNS . ROWS) fitting WINDOW for an ASPECT frame.
-Four rows are reserved for the application chrome: header, progress bar,
-transport row and the key hint footer."
+Four rows are reserved for the application chrome (header, progress bar,
+transport row and the key hint footer) and four columns for the body's
+horizontal padding, so the canvas never overflows the window."
   (let* ((frame (window-frame window))
          (cell-aspect (/ (float (frame-char-height frame))
                          (max 1 (frame-char-width frame))))
-         (max-columns (max 8 (window-body-width window)))
+         (max-columns (max 8 (- (window-body-width window) 4)))
          (max-rows (max 3 (- (window-body-height window) 4)))
          (scale (* aspect cell-aspect))
          (columns (min max-columns (max 8 (floor (* max-rows scale)))))
