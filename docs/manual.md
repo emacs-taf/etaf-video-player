@@ -41,6 +41,18 @@ in the status line is the number of frames presented in the last sample
 window, not the timer rate, so a canvas too large for the display cost reports
 a lower number instead of a hopeful one.
 
+## Playlists
+
+`etaf-video-player-open` accepts `:playlist` with a list of sources and
+`:index` to select the starting one; `etaf-video-player-enqueue` appends a
+source while the current item keeps playing, and `etaf-video-player-remove`
+drops one item.  `etaf-video-player-next`/`-previous` (also `>` and `<`)
+move through the queue, `etaf-video-player-play-index` jumps to an item, and
+`l` cycles the loop mode (off, list, one) while `s` toggles shuffle.  The
+sidebar lists the queue with the current item highlighted; clicking an entry
+plays it.  When an item ends the queue advances per the loop mode and the
+last item either wraps (list loop) or stops.
+
 ## Image frames
 
 Decoding, scaling and publication belong to the native `etaf-video` Component,
@@ -98,6 +110,8 @@ ffmpeg installation; `etaf-video-ffplay-program` points at another one.
 | `1` .. `4` | 64, 96, 128, 176 columns |
 | `F` | fit to the window |
 | `o`, `u`, `d` | open a file / open a URL / demo |
+| `>`, `<` | next / previous playlist item |
+| `l`, `s` | loop off/list/one, shuffle |
 | `?`, `q` | help / close |
 
 `F` and `etaf-video-player-fit` reserve one row for the status line and refit

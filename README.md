@@ -22,6 +22,9 @@ character-only terminal player, use the companion `etaf-ascii-video`.
   volume, and pausing releases it so a long pause never catches up.
 - A canvas that fits the window (and follows resizes), four grid presets, and
   explicit `etaf-video-player-set-grid` for scripts.
+- A playlist sidebar: open several files (or a URL) as one queue, click an
+  item to play it, and move with next/previous.  Loop (off/list/one) and
+  shuffle are one key away, and a finished item advances automatically.
 - Play, pause, single frame stepping, seeking, 0.5x to 8x rates, volume keys
   and a sound toggle.
 - Latest-frame-wins display: when decoding outruns display, older frames are
@@ -66,6 +69,7 @@ variables documented in ETAF's manual.
 (etaf-video-player-open-file "clip.mp4") ; a local video with sound
 (etaf-video-player-open-url "https://example.com/clip.mp4") ; a network stream
 (etaf-video-player-open '(:file "clip.mp4" :columns 120 :rows 34 :volume 60))
+(etaf-video-player-open '(:playlist ((:file "a.mp4") (:file "b.mp4")) :loop 'all))
 (etaf-video-player-set-audio nil)        ; watch it muted
 ```
 
@@ -82,6 +86,8 @@ variables documented in ETAF's manual.
 | `1` .. `4` | grid presets (64, 96, 128, 176 columns, rows follow the aspect) |
 | `F` | fit the canvas to the window |
 | `o` / `u` / `d` | open a file / open a URL / replay the built-in demo |
+| `>` / `<` | next / previous playlist item |
+| `l` / `s` | cycle loop mode / toggle shuffle |
 | `?` / `q` | help / close |
 
 ## Checks

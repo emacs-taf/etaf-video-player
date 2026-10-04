@@ -47,10 +47,13 @@
 ;; plist: `(:file PATH)' for a local video, `(:url URL)' for a network stream
 ;; and `(:demo)' for the generated test pattern.  All forms accept the hints
 ;; `:columns' and `:rows' (canvas size in character cells), `:speed'
-;; (playback rate), `:audio' and `:volume' (0 to 100).  The canvas is fitted
-;; to the selected window unless both size hints are given.  An existing
-;; player is closed first; unreadable files, non-HTTP(S) URLs and unsupported
-;; sources signal `user-error' before any process starts.
+;; (playback rate), `:audio' and `:volume' (0 to 100).  `:playlist SOURCES'
+;; opens several items (each SOURCES element is anything this function
+;; accepts) with `:index' selecting the first one, and `:loop'
+;; (`none'/`all'/`one') plus `:shuffle' initialize the queue policy.  The
+;; canvas is fitted to the selected window unless both size hints are given.
+;; An existing player is closed first; unreadable files, non-HTTP(S) URLs and
+;; unsupported sources signal `user-error' before any process starts.
 ;;
 ;; Function: etaf-video-player-open-file (file)
 ;;;###autoload (autoload 'etaf-video-player-open-file "etaf-video-player" nil t)
@@ -111,6 +114,43 @@
 ;; One row is reserved for the status line; the window is refitted through
 ;; ETAF before the grid changes.
 ;;
+;; Function: etaf-video-player-next ()
+;;;###autoload (autoload 'etaf-video-player-next "etaf-video-player" nil t)
+;; Play the next playlist item, wrapping to the first one at the end.
+;; The current item keeps playing if it was playing.
+;;
+;; Function: etaf-video-player-previous ()
+;;;###autoload (autoload 'etaf-video-player-previous "etaf-video-player" nil t)
+;; Play the previous playlist item, wrapping around at the first one.
+;;
+;; Function: etaf-video-player-play-index (index)
+;;;###autoload (autoload 'etaf-video-player-play-index "etaf-video-player" nil t)
+;; Play playlist item INDEX from the beginning.
+;;
+;; Function: etaf-video-player-enqueue (source)
+;;;###autoload (autoload 'etaf-video-player-enqueue "etaf-video-player" nil t)
+;; Append SOURCE to the current player's playlist.
+;; SOURCE is anything `etaf-video-source-info' accepts; the running item is
+;; not interrupted.
+;;
+;; Function: etaf-video-player-remove (index)
+;;;###autoload (autoload 'etaf-video-player-remove "etaf-video-player" nil t)
+;; Remove playlist item INDEX from the current player.
+;; Removing the running item selects the nearest remaining one; the last
+;; remaining item signals `user-error' instead of leaving an empty queue.
+;;
+;; Function: etaf-video-player-toggle-loop ()
+;;;###autoload (autoload 'etaf-video-player-toggle-loop "etaf-video-player" nil t)
+;; Cycle the current player's loop mode: `none', `all', `one'.
+;;
+;; Function: etaf-video-player-toggle-shuffle ()
+;;;###autoload (autoload 'etaf-video-player-toggle-shuffle "etaf-video-player" nil t)
+;; Toggle shuffle playback for the current player.
+;;
+;; Function: etaf-video-player-cycle-speed ()
+;;;###autoload (autoload 'etaf-video-player-cycle-speed "etaf-video-player" nil t)
+;; Cycle the current player through the supported playback rates.
+;;
 ;; Function: etaf-video-player-state ()
 ;; Return the current player's state as a detached plist.
 ;; Keys are `:source', `:playing', `:position', `:duration', `:speed',
@@ -118,8 +158,9 @@
 ;; (the effective mode, `ascii' when the frame cannot show images), `:fps'
 ;; (display timer rate), `:presented-fps', `:source-fps', `:source-width',
 ;; `:source-height', `:received', `:presented', `:dropped', `:audio',
-;; `:volume' and `:ended'.  It reads the live player without changing it, and
-;; signals `user-error' outside a player buffer.
+;; `:volume', `:title', `:queue-length', `:index', `:loop', `:shuffle' and
+;; `:ended'.  It reads the live player without changing it, and signals
+;; `user-error' outside a player buffer.
 ;;
 ;; Variable: etaf-video-player-audio
 ;; Whether new players play their source's audio track.

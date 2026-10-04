@@ -4,6 +4,11 @@
 
 ### Added
 
+- A playlist sidebar: open several sources as one queue, click an item to
+  play it, move with next/previous, and let a finished item advance per the
+  loop mode (off, list, one).  Shuffle is a toggle; enqueue and remove edit
+  the queue without interrupting the running item.
+
 - A themed application shell with an etaf-ui transport: header status, a
   `etaf-range` progress bar you can click or drag to seek, and buttons for
   play/pause, ±5 s, volume and mute.  The play/pause and sound glyphs follow

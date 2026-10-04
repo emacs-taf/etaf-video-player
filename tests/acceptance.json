@@ -64,6 +64,21 @@
       "name": "etaf-video-player-tests-plays-demo-with-real-ffmpeg",
       "file": "tests/etaf-video-player-tests.el",
       "purpose": "The built-in demo plays through a real ffmpeg when one is installed, gated so other machines still run the fixture scenarios."
+    },
+    {
+      "name": "etaf-video-player-tests-playlist-navigates-and-edits",
+      "file": "tests/etaf-video-player-tests.el",
+      "purpose": "A playlist opens by index and follows next, previous, enqueue and remove while keeping the running item addressable."
+    },
+    {
+      "name": "etaf-video-player-tests-playlist-auto-advances-with-loop",
+      "file": "tests/etaf-video-player-tests.el",
+      "purpose": "An item that ends advances per loop policy: all wraps to the first item, none stops on the last one."
+    },
+    {
+      "name": "etaf-video-player-tests-playlist-shuffle-stays-in-range",
+      "file": "tests/etaf-video-player-tests.el",
+      "purpose": "Shuffle reports its flag and next picks a different queue item within range."
     }
   ]
 }

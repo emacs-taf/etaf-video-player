@@ -525,5 +525,122 @@ above still cover the full public path there."
         (should (equal 640 (plist-get (etaf-video-player-tests--state) :source-width))))
     (etaf-video-player-tests--cleanup)))
 
+(ert-deftest etaf-video-player-tests-playlist-navigates-and-edits ()
+  "A playlist plays items by index and follows next, previous and edits.
+The state reports the queue length, the running index and the title, and
+enqueue/remove keep the running item addressable."
+  (etaf-video-player-tests--cleanup)
+  (let ((log (etaf-video-player-tests--log))
+        (second (make-temp-file "etaf-video-second-" nil ".mp4")))
+    (unwind-protect
+        (etaf-video-player-tests--with-fixture
+         log (list "FAKE_FFMPEG_FRAMES=400" "FAKE_FFMPEG_INTERVAL=0.02"
+                   "FAKE_FFPROBE_DURATION=8.0" "FAKE_FFPROBE_FPS=50/1")
+         (copy-file etaf-video-player-tests--input second t)
+         (etaf-video-player-open
+          (list :playlist (list (list :file etaf-video-player-tests--input)
+                                (list :file second))
+                :columns 16 :rows 4))
+         (should (etaf-video-player-tests--wait
+                  (lambda () (>= (plist-get (etaf-video-player-tests--state) :presented) 1))))
+         (should (= 2 (plist-get (etaf-video-player-tests--state) :queue-length)))
+         (should (= 0 (plist-get (etaf-video-player-tests--state) :index)))
+         (should (equal "fake-ffmpeg.py"
+                        (plist-get (etaf-video-player-tests--state) :title)))
+         (with-current-buffer "*Video Player*" (etaf-video-player-next))
+         (should (= 1 (plist-get (etaf-video-player-tests--state) :index)))
+         (should (equal (file-name-nondirectory second)
+                        (plist-get (etaf-video-player-tests--state) :title)))
+         (should (plist-get (etaf-video-player-tests--state) :playing))
+         (with-current-buffer "*Video Player*" (etaf-video-player-previous))
+         (should (= 0 (plist-get (etaf-video-player-tests--state) :index)))
+         (with-current-buffer "*Video Player*" (etaf-video-player-play-index 1))
+         (should (= 1 (plist-get (etaf-video-player-tests--state) :index)))
+         (with-current-buffer "*Video Player*"
+           (etaf-video-player-enqueue (list :file etaf-video-player-tests--input)))
+         (should (= 3 (plist-get (etaf-video-player-tests--state) :queue-length)))
+         (with-current-buffer "*Video Player*" (etaf-video-player-remove 0))
+         (should (= 2 (plist-get (etaf-video-player-tests--state) :queue-length)))
+         (should (= 0 (plist-get (etaf-video-player-tests--state) :index)))
+         (should-error (with-current-buffer "*Video Player*"
+                         (etaf-video-player-remove 0) (etaf-video-player-remove 0))
+                       :type 'user-error)
+         (etaf-video-player-close))
+      (ignore-errors (delete-file log))
+      (ignore-errors (delete-file second))
+      (etaf-video-player-tests--cleanup))))
+
+(ert-deftest etaf-video-player-tests-playlist-auto-advances-with-loop ()
+  "An item that ends advances according to the loop policy.
+`all' plays the next item and wraps to the first, `one' repeats the item
+and `none' stops on the last one."
+  (etaf-video-player-tests--cleanup)
+  (let ((log (etaf-video-player-tests--log)))
+    (unwind-protect
+        (etaf-video-player-tests--with-fixture
+         log (list "FAKE_FFMPEG_FRAMES=2" "FAKE_FFMPEG_INTERVAL=0.01"
+                   "FAKE_FFPROBE_DURATION=1.0" "FAKE_FFPROBE_FPS=50/1")
+         (etaf-video-player-open
+          (list :playlist (list (list :file etaf-video-player-tests--input)
+                                (list :file etaf-video-player-tests--input))
+                :loop 'all :columns 8 :rows 2))
+         (should (etaf-video-player-tests--wait
+                  (lambda () (= 1 (plist-get (etaf-video-player-tests--state) :index)))
+                  6))
+         (should (etaf-video-player-tests--wait
+                  (lambda () (= 0 (plist-get (etaf-video-player-tests--state) :index)))
+                  6))
+         (etaf-video-player-close))
+      (ignore-errors (delete-file log))
+      (etaf-video-player-tests--cleanup)))
+  (etaf-video-player-tests--cleanup)
+  (let ((log (etaf-video-player-tests--log)))
+    (unwind-protect
+        (etaf-video-player-tests--with-fixture
+         log (list "FAKE_FFMPEG_FRAMES=2" "FAKE_FFMPEG_INTERVAL=0.01"
+                   "FAKE_FFPROBE_DURATION=1.0" "FAKE_FFPROBE_FPS=50/1")
+         (etaf-video-player-open
+          (list :playlist (list (list :file etaf-video-player-tests--input)
+                                (list :file etaf-video-player-tests--input))
+                :loop 'none :columns 8 :rows 2))
+         (should (etaf-video-player-tests--wait
+                  (lambda () (= 1 (plist-get (etaf-video-player-tests--state) :index)))
+                  6))
+         (should (etaf-video-player-tests--wait
+                  (lambda () (plist-get (etaf-video-player-tests--state) :ended))
+                  6))
+         (should (= 1 (plist-get (etaf-video-player-tests--state) :index)))
+         (etaf-video-player-close))
+      (ignore-errors (delete-file log))
+      (etaf-video-player-tests--cleanup))))
+
+(ert-deftest etaf-video-player-tests-playlist-shuffle-stays-in-range ()
+  "Shuffle picks another item in the queue and reports the flag."
+  (etaf-video-player-tests--cleanup)
+  (let ((log (etaf-video-player-tests--log)))
+    (unwind-protect
+        (etaf-video-player-tests--with-fixture
+         log (list "FAKE_FFMPEG_FRAMES=400" "FAKE_FFMPEG_INTERVAL=0.02"
+                   "FAKE_FFPROBE_DURATION=8.0" "FAKE_FFPROBE_FPS=50/1")
+         (etaf-video-player-open
+          (list :playlist (list (list :file etaf-video-player-tests--input)
+                                (list :file etaf-video-player-tests--input)
+                                (list :file etaf-video-player-tests--input))
+                :columns 8 :rows 2))
+         (should (etaf-video-player-tests--wait
+                  (lambda () (>= (plist-get (etaf-video-player-tests--state) :presented) 1))))
+         (with-current-buffer "*Video Player*" (etaf-video-player-toggle-shuffle))
+         (should (plist-get (etaf-video-player-tests--state) :shuffle))
+         (let ((before (plist-get (etaf-video-player-tests--state) :index)))
+           (with-current-buffer "*Video Player*" (etaf-video-player-next))
+           (let ((after (plist-get (etaf-video-player-tests--state) :index)))
+             (should (and (>= after 0) (< after 3)))
+             (should-not (= before after))))
+         (with-current-buffer "*Video Player*" (etaf-video-player-toggle-shuffle))
+         (should-not (plist-get (etaf-video-player-tests--state) :shuffle))
+         (etaf-video-player-close))
+      (ignore-errors (delete-file log))
+      (etaf-video-player-tests--cleanup))))
+
 (provide 'etaf-video-player-tests)
 ;;; etaf-video-player-tests.el ends here
