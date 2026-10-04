@@ -4,6 +4,12 @@
 
 ### Added
 
+- A themed application shell with an etaf-ui transport: header status, a
+  `etaf-range` progress bar you can click or drag to seek, and buttons for
+  play/pause, ±5 s, volume and mute.  The play/pause and sound glyphs follow
+  the live state through retained Host updates, so the View is never
+  republished for a playback second.
+
 - Video playback in an ETAF buffer as sharp image frames with sound, built on
   the framework's native `etaf-video` Component: ffmpeg decodes at the
   display's device pixel ratio, an ffplay sidecar plays the source's audio, and

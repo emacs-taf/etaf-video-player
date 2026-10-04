@@ -99,22 +99,45 @@ Return PREDICATE's final value."
 
 (defun etaf-video-player-tests--visible (line)
   "Return LINE's active characters without EBox display padding.
-EBox pads each row to its owner width with a `space' display character for
-background painting; those characters are not video pixels."
-  (let ((position 0) (end (length line)) cut)
+EBox pads rows with `space' display characters for background painting and
+for centering; those characters are not video pixels, on either side."
+  (let ((position 0) (end (length line)) start cut)
     (while (< position end)
-      (let ((display (get-text-property position 'display line)))
-        (when (and (null cut) (consp display) (eq (car display) 'space))
-          (setq cut position))
+      (let* ((display (get-text-property position 'display line))
+             (padding (and (consp display) (eq (car display) 'space))))
+        (cond ((and padding (null start)) nil)
+              ((null start) (setq start position))
+              ((and padding (null cut)) (setq cut position)))
         (setq position (or (next-property-change position line end) end))))
-    (substring-no-properties line 0 (or cut end))))
+    (substring-no-properties line (or start 0) (or cut end))))
 
 (defun etaf-video-player-tests--grid (rows)
-  "Return the first ROWS visible fallback canvas lines of the buffer."
+  "Return the first ROWS visible canvas lines of the player buffer.
+The shell puts a header above the canvas, so the canvas is located by the
+first line that carries video characters instead of by line number."
   (with-current-buffer "*Video Player*"
-    (mapconcat #'etaf-video-player-tests--visible
-               (cl-subseq (split-string (buffer-string) "\n") 0 rows)
-               "\n")))
+    (let* ((lines (split-string (buffer-string) "\n"))
+           (start (cl-position-if
+                   (lambda (line)
+                     (let ((visible (etaf-video-player-tests--visible line)))
+                       (string-match-p "[@▀]" visible)))
+                   lines)))
+      (mapconcat #'etaf-video-player-tests--visible
+                 (cl-subseq lines (or start 0) (+ (or start 0) rows))
+                 "\n"))))
+
+(defun etaf-video-player-tests--image-cell ()
+  "Return non-nil when the buffer publishes one image display cell."
+  (with-current-buffer "*Video Player*"
+    (let ((text (buffer-string))
+          (position 0)
+          found)
+      (while (and (< position (length text)) (null found))
+        (when (imagep (get-text-property position 'display text))
+          (setq found t))
+        (setq position (or (next-property-change position text)
+                           (length text))))
+      found)))
 
 (defmacro etaf-video-player-tests--with-graphics (&rest body)
   "Run BODY as if the frame could show images at the frame's scale factor."
@@ -161,8 +184,7 @@ size and publish an image cell instead of characters."
            (should (etaf-video-player-tests--wait
                     (lambda () (>= (plist-get (etaf-video-player-tests--state) :presented) 1))))
            (should (eq 'image (plist-get (etaf-video-player-tests--state) :render-mode)))
-           (with-current-buffer "*Video Player*"
-             (should (imagep (get-text-property 0 'display (buffer-string)))))
+           (should (etaf-video-player-tests--image-cell))
            (let* ((arguments (car (last (etaf-video-player-tests--runs log))))
                   (scale (cl-find-if (lambda (argument)
                                        (string-prefix-p "scale=" argument))

@@ -17,6 +17,13 @@ Runtime.
 The player buffer hides its cursor, so no cursor frame flashes around the
 picture.
 
+The window is a themed shell: a header with the live playback status, the
+video canvas fitted to the window and kept at its original aspect ratio, a
+progress bar you can click or drag to seek, and a transport row with
+play/pause, ±5 s, volume and mute controls.  The play/pause and sound glyphs
+change with the state, and the progress bar moves through retained geometry
+instead of republishing the View.
+
 Playback starts immediately. `SPC` pauses and resumes, `n` pauses and presents
 exactly one more frame, `f` and `b` seek five seconds, and `+`/`-` step through
 0.5x, 1x, 2x, 4x and 8x. Pausing releases the producer and the audio sidecar,

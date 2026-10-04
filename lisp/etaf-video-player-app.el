@@ -14,12 +14,29 @@
 
 (require 'cl-lib)
 (require 'etaf)
+(require 'etaf-ui)
+(require 'etaf-video-player-theme)
 
 (defconst etaf-video-player--buffer-name "*Video Player*"
   "Name of the single application buffer.")
 
 (defconst etaf-video-player--hud-ref 'etaf-video-player-hud
   "Retained Host reference of the status line.")
+
+(defconst etaf-video-player--time-ref 'etaf-video-player-time
+  "Retained Host reference of the playback clock.")
+
+(defconst etaf-video-player--play-ref 'etaf-video-player-play
+  "Retained Host reference of the play/pause glyph.")
+
+(defconst etaf-video-player--volume-ref 'etaf-video-player-volume-text
+  "Retained Host reference of the volume percentage.")
+
+(defconst etaf-video-player--audio-ref 'etaf-video-player-audio-text
+  "Retained Host reference of the sound glyph.")
+
+(defconst etaf-video-player--progress-fill-ref 'etaf-video-player-progress-fill
+  "Retained Host reference of the progress bar fill.")
 
 (defconst etaf-video-player--hud-interval 0.25
   "Seconds between status line refreshes.")
@@ -150,12 +167,13 @@ status line."
 
 (defun etaf-video-player--window-grid (window aspect)
   "Return the (COLUMNS . ROWS) fitting WINDOW for an ASPECT frame.
-One row is reserved for the status line."
+Four rows are reserved for the application chrome: header, progress bar,
+transport row and the key hint footer."
   (let* ((frame (window-frame window))
          (cell-aspect (/ (float (frame-char-height frame))
                          (max 1 (frame-char-width frame))))
          (max-columns (max 8 (window-body-width window)))
-         (max-rows (max 3 (1- (window-body-height window))))
+         (max-rows (max 3 (- (window-body-height window) 4)))
          (scale (* aspect cell-aspect))
          (columns (min max-columns (max 8 (floor (* max-rows scale)))))
          (rows (max 3 (min max-rows (floor (/ columns scale))))))
@@ -205,15 +223,40 @@ One row is reserved for the status line."
             (format "%s" (etaf-video-player--player-speed player)))))
 
 (defun etaf-video-player--player-render (player)
-  "Publish PLAYER's status line from the live video state."
-  (let ((state (etaf-video-player--state player)))
-    (setf (etaf-video-player--player-hud-text player)
-          (etaf-video-player--hud player state))
-    (when-let* ((runtime (etaf-runtime-for-buffer
-                          (etaf-video-player--player-buffer player))))
-      (etaf-runtime-update-host-content
-       runtime etaf-video-player--hud-ref
-       (etaf-video-player--player-hud-text player)))))
+  "Publish PLAYER's transport and status text from the live video state.
+One batched retained update refreshes the clock, the play/pause glyph, the
+volume and sound labels; the progress fill moves through its retained
+geometry, so the View is never republished for a playback second."
+  (let* ((state (etaf-video-player--state player))
+         (runtime (etaf-runtime-for-buffer
+                   (etaf-video-player--player-buffer player)))
+         (playing (plist-get state :playing))
+         (duration (plist-get (etaf-video-player--player-spec player) :duration)))
+    (when runtime
+      (setf (etaf-video-player--player-hud-text player)
+            (etaf-video-player--hud player state))
+      (etaf-runtime-update-host-contents
+       runtime
+       (list (cons etaf-video-player--hud-ref
+                   (etaf-video-player--player-hud-text player))
+             (cons etaf-video-player--time-ref
+                   (format "%s / %s"
+                           (etaf-video-player--clock (plist-get state :position))
+                           (etaf-video-player--clock duration)))
+             (cons etaf-video-player--play-ref (if playing "⏸" "▶"))
+             (cons etaf-video-player--volume-ref
+                   (format "%d%%" (etaf-video-player--player-volume player)))
+             (cons etaf-video-player--audio-ref
+                   (if (etaf-video-player--player-audio player) "🔊" "🔇"))))
+      (when (and duration (> duration 0))
+        (etaf-runtime-update-host-geometries
+         runtime
+         (list (cons etaf-video-player--progress-fill-ref
+                     (list :width
+                           (list '% (* 100.0
+                                       (min 1.0
+                                            (/ (float (or (plist-get state :position) 0))
+                                               duration))))))))))))
 
 (defun etaf-video-player--player-tick (player)
   "Refresh PLAYER's status line while its buffer is alive."
@@ -245,24 +288,103 @@ The retained refs returned here are closed over by the application View."
           (etaf-ref (etaf-video-player--player-hud-text player)))
     player))
 
+(etaf-define-component etaf-video-player--shell (&key player)
+  "Render the player shell for PLAYER with the application theme.
+The theme is provided during setup, so every etaf-ui Component in this tree
+renders with the player's own palette."
+  :setup
+  (etaf-theme-provide (etaf-video-player-theme-defaults))
+  :render
+  (let ((line (etaf-video-player-color :line))
+        (panel (etaf-video-player-color :panel))
+        (panel2 (etaf-video-player-color :panel2))
+        (ink (etaf-video-player-color :ink))
+        (muted (etaf-video-player-color :muted))
+        (handle (etaf-video-player--player-handle player)))
+    (etaf-view
+     (flex :flex-direction 'column :width '(vw 100) :height '(vh 100)
+           :background-color (etaf-video-player-color :bg) :color ink
+       (flex :flex-direction 'row :height '(lh 1) :width 'stretch
+             :padding '((lh 0) (ch 2)) :justify-content 'space-between
+             :background-color panel
+             :border-bottom (list '(px 1) 'solid line)
+         (etaf-label :text "ETAF 视频播放器" :variant 'strong)
+         (text :ref etaf-video-player--hud-ref :id "etaf-video-player-hud"
+               (expr (etaf-value (etaf-video-player--player-hud-text-ref player)))))
+       (flex :flex-grow 1 :flex-basis '(lh 0) :flex-direction 'column
+             :align-items 'center :justify-content 'center
+             :padding '((lh 1) (ch 2))
+         (etaf-video :src (etaf-video-player--player-spec player)
+                     :mode 'image
+                     :columns (etaf-value (etaf-video-player--player-columns-ref player))
+                     :rows (etaf-value (etaf-video-player--player-rows-ref player))
+                     :speed (etaf-value (etaf-video-player--player-speed-ref player))
+                     :audio (etaf-value (etaf-video-player--player-audio-ref player))
+                     :volume (etaf-value (etaf-video-player--player-volume-ref player))
+                     :device-pixel-ratio etaf-video-player-device-pixel-ratio
+                     :autoplay t
+                     :handle handle
+                     :on-press (lambda () (etaf-video-toggle-playback handle))))
+       (column :width 'stretch :padding '((lh 1) (ch 2)) :background-color panel2
+         (etaf-range :min 0 :max 100 :value 0
+                     :fill-ref etaf-video-player--progress-fill-ref
+                     :label "播放进度"
+                     :on-commit (lambda (percent)
+                                  (let ((duration (plist-get (etaf-video-player--player-spec player)
+                                                             :duration)))
+                                    (when duration
+                                      (etaf-video-seek handle
+                                                       (* duration (/ percent 100.0)))))))
+         (flex :flex-direction 'row :height '(lh 1) :gap '((lh 0) (ch 1))
+               :align-items 'center
+           (text :ref etaf-video-player--time-ref :id "etaf-video-player-time"
+                 "0:00 / --:--")
+           (box :flex-grow 1 :flex-basis '(ch 0) :min-width '(px 0) "")
+           (etaf-button :label "⏪ 5s" :variant 'ghost
+                        :on-press (lambda () (etaf-video-player-seek
+                                              (+ (or (plist-get (etaf-video-player--state player)
+                                                                :position)
+                                                     0)
+                                                 -5))))
+           (etaf-button :label "⏮" :variant 'ghost
+                        :on-press (lambda () (etaf-video-seek handle 0)))
+           (box :background-color (etaf-video-player-color :accent)
+                :padding '((lh 0) (ch 2))
+                :pointer 'hand :role 'button :tab-index 0
+                :on-press (lambda () (etaf-video-toggle-playback handle))
+             (text :ref etaf-video-player--play-ref :id "etaf-video-player-play" "▶"))
+           (etaf-button :label "5s ⏩" :variant 'ghost
+                        :on-press (lambda () (etaf-video-player-seek
+                                              (+ (or (plist-get (etaf-video-player--state player)
+                                                                :position)
+                                                     0)
+                                                 5))))
+           (box :flex-grow 1 :flex-basis '(ch 0) :min-width '(px 0) "")
+           (etaf-button :label "音量 −" :variant 'ghost
+                        :on-press (lambda ()
+                                    (etaf-video-player-set-volume
+                                     (max 0 (- (etaf-video-player--player-volume player) 10)))))
+           (etaf-button :label "音量 +" :variant 'ghost
+                        :on-press (lambda ()
+                                    (etaf-video-player-set-volume
+                                     (min 100 (+ (etaf-video-player--player-volume player) 10)))))
+           (text :ref etaf-video-player--volume-ref :id "etaf-video-player-volume-text"
+                 "100%")
+           (etaf-button :label "静音" :variant 'ghost
+                        :on-press (lambda ()
+                                    (etaf-video-player--player-set-audio
+                                     player (not (etaf-video-player--player-audio player)))
+                                    (etaf-video-player--player-render player)))
+           (text :ref etaf-video-player--audio-ref :id "etaf-video-player-audio-text"
+                 "🔊")))
+       (flex :flex-direction 'row :height '(lh 1) :width 'stretch
+             :padding '((lh 0) (ch 2)) :background-color panel
+             :border-top (list '(px 1) 'solid line)
+         (text :color muted
+               "SPC 播放/暂停 · f/b ±5s · +/- 速度 · [ ] 音量 · a 声音 · F 适配 · 1-4 网格 · q 关闭"))))))
 (defun etaf-video-player--view (player)
   "Return the mountable View of PLAYER."
-  (etaf-view
-   (flex :flex-direction 'column :width '(vw 100)
-         :background-color "#0B0C0E" :color "#C9CDD3"
-     (etaf-video :src (etaf-video-player--player-spec player)
-                 :mode 'image
-                 :columns (etaf-value (etaf-video-player--player-columns-ref player))
-                 :rows (etaf-value (etaf-video-player--player-rows-ref player))
-                 :speed (etaf-value (etaf-video-player--player-speed-ref player))
-                 :audio (etaf-value (etaf-video-player--player-audio-ref player))
-                 :volume (etaf-value (etaf-video-player--player-volume-ref player))
-                 :device-pixel-ratio etaf-video-player-device-pixel-ratio
-                 :autoplay t
-                 :handle (etaf-video-player--player-handle player))
-     (box :height '(lh 1) :width '(vw 100) :wrap-mode 'none :overflow 'hidden
-       (text :id "hud" :ref etaf-video-player--hud-ref
-             (expr (etaf-value (etaf-video-player--player-hud-text-ref player))))))))
+  (etaf-view (etaf-video-player--shell :player player)))
 
 (defun etaf-video-player--show (buffer)
   "Show BUFFER in the selected window before mounting its View.
