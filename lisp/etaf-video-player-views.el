@@ -125,8 +125,8 @@ a renderer fact rather than a window-chrome estimate."
       (text (expr summary)))))
 
 (etaf-define-component etaf-video-player--view-details
-    (&key title source meta keys speed audio loop shuffle on-toggle-theme
-          position left top width height)
+    (&key title source meta speed audio loop shuffle on-toggle-theme
+          columns rows ratio fps position left top width height)
   "Render source information and retained playback settings."
   :view
   (flex :position (or position 'static) :left (or left '(px 0)) :top (or top '(lh 0))
@@ -156,11 +156,14 @@ a renderer fact rather than a window-chrome estimate."
       (text (expr (format "声音    %s" (if (etaf-video-player--view-value audio) "开" "关")))))
     (etaf-divider)
     (box :height '(lh 1) :font-weight 'bold :color (etaf-video-player-color :muted)
-      (text "快捷键"))
+      (text "画布"))
     (box :height '(lh 1))
-    (box :height (list 'lh (length keys)) :overflow 'hidden :font-size 16
+    (box :height '(lh 3) :overflow 'hidden :font-size 16
          :color (etaf-video-player-color :muted)
-      (text (expr (mapconcat (lambda (row) (format "%5s  %s" (car row) (cdr row))) keys "\n"))))
+      (text (expr (format "尺寸    %d × %d 单元格\n倍率    %s\n帧率上限 %s"
+                          columns rows
+                          (if (numberp ratio) (format "%gx (设备像素)" ratio) "自动 (设备像素)")
+                          (if fps (format "%d fps" fps) "默认")))))
     (box :flex-grow 1 :flex-basis '(lh 0) :min-height '(lh 0))
     (etaf-button :ref 'video-theme :label "明暗主题" :variant 'ghost
                  :help-echo "切换明暗配色 (T)" :on-press on-toggle-theme)))

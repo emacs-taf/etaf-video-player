@@ -34,21 +34,6 @@
 (defconst etaf-video-player--progress-fill-ref 'etaf-video-player-progress-fill
   "Retained Host reference of the progress bar fill.")
 
-(defconst etaf-video-player--key-hints
-  '(("SPC" . "播放 / 暂停")
-    ("n" . "单步一帧")
-    ("< >" . "上一条 / 下一条")
-    ("f b" . "前进 / 后退五秒")
-    ("+ -" . "播放速度")
-    ("[ ]" . "音量")
-    ("a" . "声音开关")
-    ("l s" . "循环 / 随机")
-    ("F" . "适配窗口")
-    ("1-4" . "画布尺寸")
-    ("T" . "明暗主题")
-    ("q" . "关闭"))
-  "Keyboard shortcuts listed by the details aside.")
-
 (defconst etaf-video-player--hint-line
   (concat "SPC 播放/暂停 · n 单步 · f/b ±5s · <> 上/下条 · +/- 速度 · [ ] 音量"
           " · a 声音 · l 循环 · s 随机 · F 适配 · T 主题 · ? 帮助 · q 关闭")
@@ -635,7 +620,10 @@ and the play/pause icon repaint without a View rebuild."
         :title (etaf-video-player--title spec)
         :source (etaf-video-player--source-label spec)
         :meta (etaf-video-player--details-meta player spec)
-        :keys etaf-video-player--key-hints
+        :columns columns :rows canvas-rows
+        :ratio (or etaf-video-player-device-pixel-ratio
+                         (ignore-errors (frame-scale-factor)))
+        :fps etaf-video-player-display-fps
         :on-toggle-theme (lambda () (etaf-video-player--toggle-theme)))
        ;; The canvas is a layer of its own; its offset is the measured stage
        ;; fact, not a chrome estimate.
