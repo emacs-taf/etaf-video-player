@@ -1,0 +1,68 @@
+{
+  "schema": 1,
+  "load_path": [
+    ".",
+    "tests",
+    "../../etaf",
+    "../../ebox",
+    "../../ecss"
+  ],
+  "support": [],
+  "cases": [
+    {
+      "name": "etaf-video-player-tests-image-frames-publish-image-cells",
+      "file": "tests/etaf-video-player-tests.el",
+      "purpose": "A graphical frame makes the native Component publish one scaled JPEG image cell per frame with the documented mjpeg arguments."
+    },
+    {
+      "name": "etaf-video-player-tests-retina-frames-scale-by-device-pixel-ratio",
+      "file": "tests/etaf-video-player-tests.el",
+      "purpose": "The producer decodes at twice the canvas pixel size on a Retina display so the image is never upscaled by the window system."
+    },
+    {
+      "name": "etaf-video-player-tests-falls-back-to-ascii-on-terminal",
+      "file": "tests/etaf-video-player-tests.el",
+      "purpose": "Without a graphical frame the requested image mode renders a density-ramp canvas while the state reports both modes."
+    },
+    {
+      "name": "etaf-video-player-tests-audio-sidecar-follows-playback",
+      "file": "tests/etaf-video-player-tests.el",
+      "purpose": "An audio source starts one ffplay sidecar with the documented arguments while playing, releases it on pause, and stays silent while sound is off."
+    },
+    {
+      "name": "etaf-video-player-tests-volume-commands-restart-sidecar",
+      "file": "tests/etaf-video-player-tests.el",
+      "purpose": "The volume keys change the level and restart the running sidecar with the documented volume."
+    },
+    {
+      "name": "etaf-video-player-tests-controls-pause-step-seek-speed",
+      "file": "tests/etaf-video-player-tests.el",
+      "purpose": "Pause freezes the position, step presents one more frame, and seek and speed restart the producer with the documented arguments."
+    },
+    {
+      "name": "etaf-video-player-tests-finishes-and-restarts",
+      "file": "tests/etaf-video-player-tests.el",
+      "purpose": "A producer that runs out of frames ends the player, keeps its last picture, and plays again from the start."
+    },
+    {
+      "name": "etaf-video-player-tests-streams-http-url",
+      "file": "tests/etaf-video-player-tests.el",
+      "purpose": "An HTTP URL reaches ffmpeg with reconnect options while a non-HTTP scheme is rejected before any process starts."
+    },
+    {
+      "name": "etaf-video-player-tests-rejects-invalid-sources",
+      "file": "tests/etaf-video-player-tests.el",
+      "purpose": "Unsupported sources and a missing ffmpeg signal user-error and leave no mounted buffer behind."
+    },
+    {
+      "name": "etaf-video-player-tests-documented-keys-reach-player",
+      "file": "tests/etaf-video-player-tests.el",
+      "purpose": "The documented keys drive the player through the command loop instead of the renderer's own keymap, and closing leaves no buffer."
+    },
+    {
+      "name": "etaf-video-player-tests-plays-demo-with-real-ffmpeg",
+      "file": "tests/etaf-video-player-tests.el",
+      "purpose": "The built-in demo plays through a real ffmpeg when one is installed, gated so other machines still run the fixture scenarios."
+    }
+  ]
+}

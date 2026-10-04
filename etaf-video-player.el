@@ -1,0 +1,157 @@
+;;; etaf-video-player.el --- Play video with sound in an ETAF buffer -*- lexical-binding: t; -*-
+
+;; SPDX-License-Identifier: GPL-3.0-or-later
+;; Author: ETAF contributors
+;; Version: 0.1.0
+;; Package-Requires: ((emacs "29.1") (etaf "0.2.1"))
+;; Keywords: multimedia, ui
+;; URL: https://gitea.vhkd.top/geekinney/etaf-video-player
+
+;;; Commentary:
+
+;; Public API
+;;
+;; Load this package with (require 'etaf-video-player) after adding this
+;; repository and the ETAF and Ebox roots to `load-path'.  The player shows a
+;; local video or HTTP(S) stream in an ETAF buffer as sharp image frames with
+;; sound.  The native `etaf-video' Component (see the ETAF manual) decodes at
+;; the display's device pixel ratio so Retina screens stay sharp, plays the
+;; source's audio through an ffplay sidecar, and publishes every frame through
+;; the retained Host content boundary; this application owns the buffer, the
+;; canvas size, the status line and the keys.  Without a graphical frame the
+;; Canvas Component falls back to a density-ramp canvas, so the same command
+;; still shows the video in a terminal.  ffmpeg, ffprobe and ffplay must be
+;; installed; ffprobe supplies duration and size, and ffplay is only needed
+;; for sound.
+;;
+;; A session is one buffer (`*Video Player*') with one player.
+;; `etaf-video-player-open', `etaf-video-player-open-file' and
+;; `etaf-video-player-demo' create it, the functions below drive it,
+;; `etaf-video-player-state' reports it as plain data, and
+;; `etaf-video-player-close' releases it.  The default keymap binds the same
+;; commands: SPC play/pause, n step, f/b seek five seconds, +/- speed, [ and ]
+;; volume, a sound, 1-4 grid presets, F fit, o open, u url, d demo, ? help and
+;; q close.
+;;
+;; Only the interfaces listed below are supported for use by other packages.
+;; All unlisted symbols and implementation features are internal, including
+;; names without a double hyphen.  Do not require files below lisp/ from
+;; consumers.  This Commentary is the authoritative export list;
+;; implementations and precise docstrings remain beside their definitions,
+;; and the manual contains workflows.
+;;
+;; Function: etaf-video-player-open (&optional source)
+;;;###autoload (autoload 'etaf-video-player-open "etaf-video-player" nil t)
+;; Open the player and return its buffer.
+;; SOURCE is nil for the built-in demo, a file name, an HTTP(S) URL, or a
+;; plist: `(:file PATH)' for a local video, `(:url URL)' for a network stream
+;; and `(:demo)' for the generated test pattern.  All forms accept the hints
+;; `:columns' and `:rows' (canvas size in character cells), `:speed'
+;; (playback rate), `:audio' and `:volume' (0 to 100).  The canvas is fitted
+;; to the selected window unless both size hints are given.  An existing
+;; player is closed first; unreadable files, non-HTTP(S) URLs and unsupported
+;; sources signal `user-error' before any process starts.
+;;
+;; Function: etaf-video-player-open-file (file)
+;;;###autoload (autoload 'etaf-video-player-open-file "etaf-video-player" nil t)
+;; Play the local video FILE with sound.
+;;
+;; Function: etaf-video-player-open-url (url)
+;;;###autoload (autoload 'etaf-video-player-open-url "etaf-video-player" nil t)
+;; Play the HTTP(S) video stream URL with sound.
+;; ffmpeg decodes the stream directly, so nothing is downloaded first.
+;; Seeking needs server range support, and a dropped connection is retried
+;; for up to five seconds.
+;;
+;; Function: etaf-video-player-demo ()
+;;;###autoload (autoload 'etaf-video-player-demo "etaf-video-player" nil t)
+;; Play a generated 30 second test pattern that needs no file.
+;;
+;; Function: etaf-video-player-close ()
+;;;###autoload (autoload 'etaf-video-player-close "etaf-video-player" nil t)
+;; Close the player in the current buffer.
+;; The status timer is cancelled, the native session and its audio sidecar
+;; are destroyed, and the ETAF Runtime is unmounted before the buffer is
+;; killed.
+;;
+;; Function: etaf-video-player-toggle-playback ()
+;; Toggle the current player between playing and paused.
+;; Pausing releases the producer and the audio sidecar; playing after the end
+;; restarts at zero.
+;;
+;; Function: etaf-video-player-step ()
+;; Pause the current player and present exactly one more frame.
+;;
+;; Function: etaf-video-player-seek (seconds)
+;; Move the current player to SECONDS and restart decoding there.
+;; Negative targets are clamped to zero and targets beyond the known duration
+;; to its end.  A paused player stays paused.
+;;
+;; Function: etaf-video-player-set-speed (speed)
+;; Set the playback rate to SPEED, a positive number.
+;; The session restarts at the current position; the display rate stays
+;; `etaf-video-display-fps' and extra decoded frames are dropped.
+;;
+;; Function: etaf-video-player-set-volume (volume)
+;; Set the audio volume to VOLUME, from 0 to 100.
+;; A playing source restarts its audio sidecar at the current position, so the
+;; new level takes effect at once.
+;;
+;; Function: etaf-video-player-set-audio (audio)
+;; Turn the current player's audio on (non-nil) or off (nil).
+;; Sources without a reported audio stream stay silent.
+;;
+;; Function: etaf-video-player-set-grid (columns rows)
+;; Resize the canvas to COLUMNS by ROWS character cells.
+;; The session restarts at the current position with the new scale, so the
+;; video aspect ratio follows the canvas only when the caller keeps it.
+;;
+;; Function: etaf-video-player-fit ()
+;; Fit the current player's canvas to the window showing it.
+;; One row is reserved for the status line; the window is refitted through
+;; ETAF before the grid changes.
+;;
+;; Function: etaf-video-player-state ()
+;; Return the current player's state as a detached plist.
+;; Keys are `:source', `:playing', `:position', `:duration', `:speed',
+;; `:columns', `:rows', `:mode' (requested, always `image'), `:render-mode'
+;; (the effective mode, `ascii' when the frame cannot show images), `:fps'
+;; (display timer rate), `:presented-fps', `:source-fps', `:source-width',
+;; `:source-height', `:received', `:presented', `:dropped', `:audio',
+;; `:volume' and `:ended'.  It reads the live player without changing it, and
+;; signals `user-error' outside a player buffer.
+;;
+;; Variable: etaf-video-player-audio
+;; Whether new players play their source's audio track.
+;; The default is t; ffplay and a sound card are required, and a source
+;; without an audio stream stays silent.
+;;
+;; Variable: etaf-video-player-device-pixel-ratio
+;; Device pixels per logical pixel for image frames.
+;; Nil derives it from `frame-scale-factor' (2 on Retina), so frames are
+;; produced at device resolution instead of being upscaled and blurred;
+;; 1 forces logical-pixel frames.
+;;
+;; Variable: etaf-video-player-grid-presets
+;; Canvas widths reached by the `1' to `4' keys.
+;; Keys are characters and values are widths in character cells, so a user can
+;; repoint the presets without touching the keymap.
+;;
+;; Variable: etaf-video-player-volume
+;; Initial audio volume for new players, from 0 to 100.
+
+;;; Code:
+
+;;;###autoload
+(eval-and-compile
+  (add-to-list 'load-path
+               (expand-file-name "lisp"
+                                 (file-name-directory
+                                  (or load-file-name
+                                      (bound-and-true-p byte-compile-current-file)
+                                      buffer-file-name)))))
+
+(require 'etaf-video-player-app)
+
+(provide 'etaf-video-player)
+;;; etaf-video-player.el ends here
