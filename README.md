@@ -10,6 +10,10 @@ publication of a fixed canvas Host, not a full re-render. This application
 owns the buffer, the canvas size, the status line and the keys. For a
 character-only terminal player, use the companion `etaf-ascii-video`.
 
+The player at a wide frame:
+
+![The player at a wide frame](examples/etaf-video-player-wide.png)
+
 ## Capabilities
 
 - Playback of local video files through ffmpeg; the built-in demo generates a
