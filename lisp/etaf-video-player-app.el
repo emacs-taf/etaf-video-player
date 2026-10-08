@@ -422,10 +422,6 @@ starts the new item playing; otherwise it stays paused."
          (count (length queue))
          (index (max 0 (min (1- count) index)))
          (spec (nth index queue)))
-    ;; A track change always starts at the beginning, so clear the position
-    ;; before the source change makes the Component rebuild its session.
-    (ignore-errors
-      (etaf-video-seek (etaf-video-player--player-handle player) 0))
     (setf (etaf-video-player--player-index player) index
           (etaf-video-player--player-spec player) spec
           (etaf-video-player--player-ended-seen player) nil)
