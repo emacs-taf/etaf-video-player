@@ -253,8 +253,7 @@ still centers inside the measured stage."
         (when grid
           ;; The canvas is one root-level absolute plane, so its offset is a
           ;; window-pixel pair; both terms are measured, never estimated from
-          ;; window character counts.  Ebox's retained-content proof accepts
-          ;; only a plain `(px N)'/`(lh N)' placement for the canvas.
+          ;; window character counts.
           (let* ((cell-width (max 1 (frame-char-width frame)))
                  (left (+ (plist-get facts :left)
                           (max 0 (floor (- (plist-get facts :width)
@@ -561,10 +560,8 @@ and the play/pause icon repaint without a View rebuild."
                     0
                   (max 0 (min (- (length queue) visible) (- index (/ visible 2))))))
          (duration (plist-get spec :duration))
-         ;; One layer per region.  Ebox's retained-content route proves a
-         ;; fixed canvas against the composition program of its containing
-         ;; plane; a frame repaints without re-composing surrounding flow
-         ;; content.  Lanes are 30ch playlist, 1ch gutter, stage, 1ch gutter,
+         ;; One layer per region, so a frame repaints only the canvas plane
+         ;; without re-composing surrounding flow content.  Lanes are 30ch playlist, 1ch gutter, stage, 1ch gutter,
          ;; 28ch details; every length is a design constant or the published
          ;; viewport, never a window character count.
          (stage-left-ch (if sidebar 31 1))
