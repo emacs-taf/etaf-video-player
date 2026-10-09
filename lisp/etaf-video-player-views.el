@@ -81,7 +81,8 @@ a renderer fact rather than a window-chrome estimate."
         :align-items 'center :gap '((lh 0) (ch 1)) :padding '((lh 0) (ch 1))
         :role 'button :tab-index 0 :ref (intern (format "video-track-%d" position))
         :help-echo (format "播放第 %d 个：%s" (1+ position) title)
-        :on-press on-press :hover-style (etaf-video-player--hover-surface)
+        :on-press on-press
+        :hover-style (unless active (etaf-video-player--hover-surface))
         :background-color (etaf-video-player-color (if active :accent-soft :surface))
     (box :if active :position 'absolute :left '(px 0) :top '(lh 0)
          :width '(px 2) :height '(lh 2) :background-color (etaf-video-player-color :accent))
