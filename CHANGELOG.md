@@ -30,3 +30,8 @@
 - Acceptance scenarios over fake ffmpeg, ffprobe and ffplay fixtures plus one
   gated real-ffmpeg demo scenario, so the public path stays testable without a
   decoder, network or sound card.
+
+### Fixed
+
+- The minibuffer and echo area borrow window lines without refitting the
+  canvas: the player keeps the size it committed until the prompt closes.

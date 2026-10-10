@@ -30,6 +30,8 @@ internal.
    (`etaf-host-ref-size`), then sizes the canvas to the measured stage and
    positions it there.  The same sync runs after every `etaf-refit`, so a
    resize re-measures instead of re-deriving geometry from window columns.
+   Lines borrowed by a transient minibuffer are not a resize; the committed
+   canvas stays until the prompt closes.
 3. The Component owns the playback session: ffmpeg decodes at the device pixel
    size, the session keeps only the newest complete frame, and each displayed
    frame is published through `etaf-runtime-update-host-content` as image

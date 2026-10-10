@@ -153,7 +153,7 @@ Playback lives in the native `etaf-video' session addressed by HANDLE; this
 record owns the playlist, the current item, the canvas size, the playback
 rate, the audio state and the status line."
   buffer spec handle queue index loop shuffle
-  columns rows speed audio volume
+  columns rows speed audio volume window-rows
   spec-ref columns-ref rows-ref speed-ref audio-ref volume-ref
   queue-ref index-ref loop-ref shuffle-ref theme-ref layout-ref
   playing playing-ref progress-ref hud-text clock-text volume-text hud-timer
@@ -696,16 +696,21 @@ canvas."
   buffer)
 
 (defun etaf-video-player--window-size-changed (frame)
-  "Refit every video player shown on FRAME after a window resize."
+  "Refit every video player shown on FRAME after a window resize.
+Lines borrowed by the minibuffer keep the canvas the player committed."
   (dolist (window (window-list frame))
     (with-current-buffer (window-buffer window)
       (when etaf-video-player--player
-        (etaf-video-player--refit etaf-video-player--player window)))))
+        (unless (etaf-transient-space-borrowed-p
+                 window (etaf-video-player--player-window-rows
+                         etaf-video-player--player))
+          (etaf-video-player--refit etaf-video-player--player window))))))
 
 (defun etaf-video-player--refit (player window)
   "Refit PLAYER to WINDOW through the framework, then sync canvas and panes.
 The renderer republishes the viewport; the application only reads the new
 published size and measures the stage Host again."
+  (setf (etaf-video-player--player-window-rows player) (window-body-height window))
   (when-let* ((buffer (etaf-video-player--player-buffer player))
               (runtime (and (buffer-live-p buffer)
                             (etaf-runtime-for-buffer buffer))))
