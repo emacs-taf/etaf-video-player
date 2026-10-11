@@ -99,7 +99,7 @@ variables documented in ETAF's manual.
 | `>` / `<` | next / previous playlist item |
 | `l` / `s` | cycle loop mode / toggle shuffle |
 | `T` | switch dark/light appearance |
-| `?` / `q` | help / close |
+| `C-c h` / `q` | help / close |
 
 ## Checks
 

@@ -126,7 +126,7 @@ ffmpeg installation; `etaf-video-ffplay-program` points at another one.
 | `>`, `<` | next / previous playlist item |
 | `l`, `s` | loop off/list/one, shuffle |
 | `T` | switch dark/light appearance |
-| `?`, `q` | help / close |
+| `C-c h`, `q` | help / close |
 
 `F` and `etaf-video-player-fit` reserve eight rows for the header, transport
 and footer. From 100 columns the playlist occupies 30 columns; from 150
