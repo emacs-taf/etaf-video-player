@@ -97,7 +97,7 @@ variables documented in ETAF's manual.
 | `F` | fit the canvas to the window |
 | `o` / `u` / `d` | open a file / open a URL / replay the built-in demo |
 | `>` / `<` | next / previous playlist item |
-| `l` / `s` | cycle loop mode / toggle shuffle |
+| `L` / `s` | cycle loop mode / toggle shuffle |
 | `T` | switch dark/light appearance |
 | `C-c h` / `q` | help / close |
 

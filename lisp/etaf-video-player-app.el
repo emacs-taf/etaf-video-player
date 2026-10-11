@@ -92,7 +92,7 @@ logical-pixel frames.  The change applies to the next session restart.")
     (define-key map (kbd "4") #'etaf-video-player--preset-command)
     (define-key map (kbd ">") #'etaf-video-player-next)
     (define-key map (kbd "<") #'etaf-video-player-previous)
-    (define-key map (kbd "l") #'etaf-video-player-toggle-loop)
+    (define-key map (kbd "L") #'etaf-video-player-toggle-loop)
     (define-key map (kbd "s") #'etaf-video-player-toggle-shuffle)
     (define-key map (kbd "F") #'etaf-video-player-fit)
     (define-key map (kbd "T") #'etaf-video-player--toggle-theme)
@@ -127,7 +127,7 @@ logical-pixel frames.  The change applies to the next session restart.")
            (define-key map (kbd "4") #'etaf-video-player--preset-command)
            (define-key map (kbd ">") #'etaf-video-player-next)
            (define-key map (kbd "<") #'etaf-video-player-previous)
-           (define-key map (kbd "l") #'etaf-video-player-toggle-loop)
+           (define-key map (kbd "L") #'etaf-video-player-toggle-loop)
            (define-key map (kbd "s") #'etaf-video-player-toggle-shuffle)
            (define-key map (kbd "F") #'etaf-video-player-fit)
            (define-key map (kbd "T") #'etaf-video-player--toggle-theme)
@@ -574,6 +574,7 @@ and the play/pause icon repaint without a View rebuild."
          (footer-top (+ transport-top etaf-video-player--bar-rows)))
     (etaf-view
      (box :position 'relative
+           :on-direction #'etaf-video-player--direction
            :width (list 'px viewport-width)
            :height (list 'lh viewport-rows)
            :background-color (etaf-video-player-color :surface)
@@ -1152,6 +1153,13 @@ outside a player buffer."
   (interactive)
   (etaf-video-player-seek
    (+ (plist-get (etaf-video-player-state) :position) 5)))
+
+(defun etaf-video-player--direction (direction)
+  "Seek the media with DIRECTION and return the result symbol."
+  (pcase direction
+    ('left (etaf-video-player--backward-command) 'handled)
+    ('right (etaf-video-player--forward-command) 'handled)
+    (_ 'release)))
 
 (defun etaf-video-player--backward-command ()
   "Seek five seconds backward."

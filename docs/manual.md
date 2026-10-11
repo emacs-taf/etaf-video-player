@@ -58,7 +58,7 @@ a lower number instead of a hopeful one.
 source while the current item keeps playing, and `etaf-video-player-remove`
 drops one item.  `etaf-video-player-next`/`-previous` (also `>` and `<`)
 move through the queue, `etaf-video-player-play-index` jumps to an item, and
-`l` cycles the loop mode (off, list, one) while `s` toggles shuffle.  The
+`L` cycles the loop mode (off, list, one) while `s` toggles shuffle.  The
 sidebar lists the queue with the current item highlighted; clicking an entry
 plays it.  When an item ends the queue advances per the loop mode and the
 last item either wraps (list loop) or stops.
@@ -124,7 +124,7 @@ ffmpeg installation; `etaf-video-ffplay-program` points at another one.
 | `F` | fit to the window |
 | `o`, `u`, `d` | open a file / open a URL / demo |
 | `>`, `<` | next / previous playlist item |
-| `l`, `s` | loop off/list/one, shuffle |
+| `L`, `s` | loop off/list/one, shuffle |
 | `T` | switch dark/light appearance |
 | `C-c h`, `q` | help / close |
 
