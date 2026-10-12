@@ -153,13 +153,16 @@ cell counts when its display property is an image or a slice carrying one."
 The batch frame is not a window-system frame, so it cannot render an SVG
 image; the fake therefore reports `display-graphic-p' as t (which is what the
 video Component asks before publishing raster frames) while SVG stays
-unavailable."
+unavailable.  A no-X Emacs also lacks the font metrics a graphical frame
+serves, so the simulation is skipped there."
   (declare (indent 0))
-  `(cl-letf (((symbol-function 'display-graphic-p)
-              (lambda (&optional _frame) t))
-             ((symbol-function 'image-type-available-p)
-              (lambda (type) (not (eq type 'svg)))))
-     ,@body))
+  `(progn
+     (skip-unless (fboundp 'font-info))
+     (cl-letf (((symbol-function 'display-graphic-p)
+                (lambda (&optional _frame) t))
+               ((symbol-function 'image-type-available-p)
+                (lambda (type) (not (eq type 'svg)))))
+       ,@body)))
 
 (defmacro etaf-video-player-tests--with-retina (&rest body)
   "Run BODY as on a graphical Retina frame with a device pixel ratio of two."
