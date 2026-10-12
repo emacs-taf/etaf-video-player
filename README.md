@@ -2,7 +2,7 @@
 
 ETAF Video Player plays a local video or HTTP(S) stream inside an Emacs buffer
 as sharp image frames with sound. It consumes ETAF's native
-[`etaf-video`](https://forgejo.vhkd.top/emacs-taf/etaf) Component: ffmpeg decodes
+[`etaf-video`](https://github.com/emacs-taf/etaf) Component: ffmpeg decodes
 at the display's device pixel ratio so Retina screens stay sharp, an ffplay
 sidecar plays the source's audio, and every frame is published through ETAF's
 retained content boundary, so one displayed frame is one incremental
