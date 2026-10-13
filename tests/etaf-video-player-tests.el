@@ -16,6 +16,12 @@
 (require 'cl-lib)
 (require 'etaf-video-player)
 
+(defvar etaf-video-player-tests--history-file
+  (expand-file-name "etaf-video-player-history-tests.sqlite3"
+                    temporary-file-directory)
+  "Isolated playback database so acceptance runs never touch user data.")
+(setq etaf-video-player-history-file etaf-video-player-tests--history-file)
+
 (defconst etaf-video-player-tests--fixtures
   (expand-file-name "fixtures"
                     (file-name-directory (or load-file-name buffer-file-name)))
@@ -662,6 +668,158 @@ and `none' stops on the last one."
          (etaf-video-player-close))
       (ignore-errors (delete-file log))
       (etaf-video-player-tests--cleanup))))
+
+(ert-deftest etaf-video-player-tests-subtitles-parse-time-and-probe ()
+  "SubRip and WebVTT tracks parse into timed cues and answer lookups.
+The parser skips malformed blocks and strips inline markup; the binary
+search returns the cue covering a playback second; an unreadable file raises
+the documented error and the beside probe prefers the language suffix."
+  (let ((track (make-temp-file "etaf-video-player-subtitle-" nil ".srt"))
+        (webvtt (make-temp-file "etaf-video-player-subtitle-" nil ".vtt"))
+        (directory (make-temp-file "etaf-video-player-video-" t)))
+    (unwind-protect
+        (progn
+          (with-temp-file track
+            (insert "1\n00:00:01,000 --> 00:00:03,500\n第一行<i>字幕</i>\n第二行\n\n"
+                    "2\n00:00:04,000 --> 00:00:06,000\n第二句\n\n"
+                    "block without a clock\n\n"
+                    "3\n00:00:07,000 --> 00:00:09,000\n第三句\n"))
+          (let ((cues (etaf-video-player-subtitle-parse track)))
+            (should (= 3 (length cues)))
+            (should (equal "第一行字幕 第二行" (nth 2 (nth 0 cues))))
+            (should (equal "第二句" (nth 2 (nth 1 cues))))
+            (should-not (etaf-video-player-subtitle-text-at cues 0.5))
+            (should (equal "第一行字幕 第二行"
+                           (etaf-video-player-subtitle-text-at cues 2.0)))
+            (should-not (etaf-video-player-subtitle-text-at cues 3.5))
+            (should (equal "第二句" (etaf-video-player-subtitle-text-at cues 4.5)))
+            (should (equal "第三句" (etaf-video-player-subtitle-text-at cues 8.0)))
+            (should-not (etaf-video-player-subtitle-text-at cues 9.5)))
+          (with-temp-file webvtt
+            (insert "WEBVTT\n\n00:01.000 --> 00:02.000\nVTT 字幕\n"))
+          (let ((cues (etaf-video-player-subtitle-parse webvtt)))
+            (should (equal "VTT 字幕" (etaf-video-player-subtitle-text-at cues 1.5))))
+          (should-error (etaf-video-player-subtitle-parse
+                         (expand-file-name "missing.srt" directory))
+                        :type 'etaf-video-player-subtitle-error)
+          (let* ((video (expand-file-name "clip.mp4" directory))
+                 (beside (expand-file-name "clip.zh.srt" directory)))
+            (write-region "1\n00:00:00,000 --> 00:00:02,000\n嗨\n" nil beside)
+            (should (equal beside (etaf-video-player-subtitle-beside video)))
+            (should-not (etaf-video-player-subtitle-beside
+                         (expand-file-name "other.mp4" directory)))))
+      (ignore-errors (delete-file track))
+      (ignore-errors (delete-file webvtt))
+      (ignore-errors (delete-directory directory t)))))
+
+(ert-deftest etaf-video-player-tests-subtitle-loads-beside-video-and-toggles ()
+  "A local video adopts the track beside it and the c key toggles it.
+The subtitle line reaches the buffer through the retained content update and
+leaves with the next retained tick, without a graphical frame."
+  (etaf-video-player-tests--cleanup)
+  (let ((log (etaf-video-player-tests--log))
+        (directory (make-temp-file "etaf-video-player-video-" t)))
+    (unwind-protect
+        (let ((video (expand-file-name "clip.mp4" directory))
+              (track (expand-file-name "clip.srt" directory)))
+          (write-region "" nil video)
+          (write-region "1\n00:00:00,000 --> 00:00:30,000\n测试字幕行\n" nil track)
+          (etaf-video-player-tests--with-fixture
+           log (list "FAKE_FFMPEG_FRAMES=400" "FAKE_FFMPEG_INTERVAL=0.02"
+                     "FAKE_FFPROBE_DURATION=30.0" "FAKE_FFPROBE_FPS=50/1")
+           (etaf-video-player-open (list :file video :columns 8 :rows 2))
+           (should (equal track (plist-get (etaf-video-player-tests--state)
+                                           :subtitle-file)))
+           (should (plist-get (etaf-video-player-tests--state) :subtitle-on))
+           (should (etaf-video-player-tests--wait
+                    (lambda ()
+                      (with-current-buffer "*Video Player*"
+                        (string-match-p "测试字幕行" (buffer-string))))))
+           (with-current-buffer "*Video Player*"
+             (execute-kbd-macro (kbd "c")))
+           (should-not (plist-get (etaf-video-player-tests--state) :subtitle-on))
+           (should (etaf-video-player-tests--wait
+                    (lambda ()
+                      (with-current-buffer "*Video Player*"
+                        (not (string-match-p "测试字幕行" (buffer-string)))))))
+           (with-current-buffer "*Video Player*"
+             (execute-kbd-macro (kbd "c")))
+           (should (plist-get (etaf-video-player-tests--state) :subtitle-on))
+           (etaf-video-player-close)))
+      (ignore-errors (delete-file log))
+      (etaf-video-player-tests--cleanup)
+      (ignore-errors (delete-directory directory t)))))
+
+(ert-deftest etaf-video-player-tests-history-records-and-resumes ()
+  "Saved positions persist per file and a useful record resumes playback.
+A record near the start or the end restarts from zero; unknown files have
+no record."
+  (etaf-video-player-tests--cleanup)
+  (let ((log (etaf-video-player-tests--log))
+        (directory (make-temp-file "etaf-video-player-video-" t)))
+    (unwind-protect
+        (let ((video (expand-file-name "resume.mp4" directory)))
+          (write-region "" nil video)
+          (should (equal 12.5 (etaf-video-player-history-record video 12.5 100.0)))
+          (should (equal (cons 12.5 100.0)
+                         (etaf-video-player-history-position video)))
+          (etaf-video-player-history-record video 30.0 120.0)
+          (should (equal (cons 30.0 120.0)
+                         (etaf-video-player-history-position video)))
+          (should-not (etaf-video-player-history-position
+                       (expand-file-name "never.mp4" directory)))
+          ;; A useful record resumes playback right after open.
+          (etaf-video-player-history-record video 40.0 200.0)
+          (etaf-video-player-tests--with-fixture
+           log (list "FAKE_FFMPEG_FRAMES=800" "FAKE_FFMPEG_INTERVAL=0.02"
+                     "FAKE_FFPROBE_DURATION=200.0" "FAKE_FFPROBE_FPS=50/1")
+           (etaf-video-player-open (list :file video :columns 8 :rows 2))
+           (should (etaf-video-player-tests--wait
+                    (lambda ()
+                      (> (plist-get (etaf-video-player-tests--state) :position)
+                         35))))
+           (etaf-video-player-close))
+          ;; A record at the very end restarts from the beginning.
+          (etaf-video-player-history-record video 195.0 200.0)
+          (etaf-video-player-tests--with-fixture
+           log (list "FAKE_FFMPEG_FRAMES=800" "FAKE_FFMPEG_INTERVAL=0.02"
+                     "FAKE_FFPROBE_DURATION=200.0" "FAKE_FFPROBE_FPS=50/1")
+           (etaf-video-player-open (list :file video :columns 8 :rows 2))
+           (sleep-for 0.5)
+           (should (< (plist-get (etaf-video-player-tests--state) :position) 30))
+           (etaf-video-player-close)))
+      (ignore-errors (delete-file log))
+      (etaf-video-player-tests--cleanup)
+      (ignore-errors (delete-directory directory t)))))
+
+(ert-deftest etaf-video-player-tests-screenshot-writes-a-png ()
+  "S saves the current frame as a readable PNG beside the video.
+Runs only where a real ffmpeg is installed; the fixture scenarios above do
+not cover the decode-to-image path."
+  (skip-unless (executable-find "ffmpeg"))
+  (etaf-video-player-tests--cleanup)
+  (let ((directory (make-temp-file "etaf-video-player-shot-" t)))
+    (unwind-protect
+        (let ((video (expand-file-name "shot.mp4" directory)))
+          (should (zerop (call-process "ffmpeg" nil nil nil
+                                       "-hide_banner" "-loglevel" "error"
+                                       "-f" "lavfi" "-i" "testsrc=size=64x36:rate=10"
+                                       "-t" "1" "-pix_fmt" "yuv420p" "-y" video)))
+          (etaf-video-player-open (list :file video :columns 8 :rows 2))
+          (should (etaf-video-player-tests--wait
+                   (lambda ()
+                     (>= (plist-get (etaf-video-player-tests--state) :presented) 1))
+                   10))
+          (let ((output (expand-file-name "frame.png" directory)))
+            (should (equal output (etaf-video-player-save-screenshot output)))
+            (should (etaf-video-player-tests--wait
+                     (lambda ()
+                       (and (file-readable-p output)
+                            (> (file-attribute-size (file-attributes output)) 0)))
+                     10)))
+          (etaf-video-player-close))
+      (etaf-video-player-tests--cleanup)
+      (ignore-errors (delete-directory directory t)))))
 
 (provide 'etaf-video-player-tests)
 ;;; etaf-video-player-tests.el ends here

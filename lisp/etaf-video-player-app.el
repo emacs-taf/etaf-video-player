@@ -18,6 +18,8 @@
 (require 'etaf-ui)
 (require 'etaf-video-player-theme)
 (require 'etaf-video-player-views)
+(require 'etaf-video-player-subtitle)
+(require 'etaf-video-player-history)
 
 (defconst etaf-video-player--buffer-name "*Video Player*"
   "Name of the single application buffer.")
@@ -26,7 +28,10 @@
   "Retained Host reference of the status line.")
 
 (defconst etaf-video-player--time-ref 'etaf-video-player-time
-  "Retained Host reference of the playback clock.")
+  "Retained Host reference of the elapsed playback clock.")
+
+(defconst etaf-video-player--duration-ref 'etaf-video-player-duration
+  "Retained Host reference of the total playback clock.")
 
 (defconst etaf-video-player--volume-ref 'etaf-video-player-volume-text
   "Retained Host reference of the volume percentage.")
@@ -34,16 +39,38 @@
 (defconst etaf-video-player--progress-fill-ref 'etaf-video-player-progress-fill
   "Retained Host reference of the progress bar fill.")
 
+(defconst etaf-video-player--subtitle-ref 'etaf-video-player-subtitle
+  "Retained Host reference of the subtitle line under the canvas.")
+
 (defconst etaf-video-player--hint-line
-  (concat "SPC 播放/暂停 · n 单步 · f/b ±5s · <> 上/下条 · +/- 速度 · [ ] 音量"
-          " · a 声音 · l 循环 · s 随机 · F 适配 · T 主题 · ? 帮助 · q 关闭")
+  (concat "SPC 播放/暂停 · f/b ±5s · <> 上/下条 · +/- 速度 · [ ] 音量"
+          " · o 打开 · T 主题 · ? 全部键位 · q 关闭")
   "One-line key hint shown in the footer.")
+
+(defconst etaf-video-player--hint-line-compact
+  "SPC 播放 · f/b ±5s · +/- 速度 · ? 键位 · q 关闭"
+  "Short footer hint used when the window hides the playlist column.")
 
 (defconst etaf-video-player--hud-interval 0.25
   "Seconds between status line refreshes.")
 
+(defconst etaf-video-player--stage-top-fallback 1
+  "Canvas row used before the stage Host has been measured.
+It clears the header row because the layout constants put the body right
+under the one-row header; without it an unmeasured canvas paints inside the
+header in batch and headless runs.")
+
 (defconst etaf-video-player--speeds '(0.5 1 2 4 8)
   "Playback rates offered by the speed commands.")
+
+(defconst etaf-video-player--resume-min-seconds 5
+  "Saved positions at or below this many seconds restart from zero.")
+
+(defconst etaf-video-player--resume-end-margin 10
+  "Saved positions within this many seconds of the end restart from zero.")
+
+(defconst etaf-video-player--history-interval 5
+  "Seconds between playback-position writes while playing.")
 
 (defconst etaf-video-player--volume-step 10
   "Volume change applied by the volume keys.")
@@ -98,6 +125,8 @@ logical-pixel frames.  The change applies to the next session restart.")
     (define-key map (kbd "T") #'etaf-video-player--toggle-theme)
     (define-key map (kbd "o") #'etaf-video-player-open-file)
     (define-key map (kbd "u") #'etaf-video-player-open-url)
+    (define-key map (kbd "c") #'etaf-video-player--subtitle-toggle-command)
+    (define-key map (kbd "S") #'etaf-video-player-save-screenshot)
     (define-key map (kbd "d") #'etaf-video-player-demo)
     (define-key map (kbd "C-c h") #'etaf-video-player--help-command)
     (define-key map (kbd "q") #'etaf-video-player-close)
@@ -133,6 +162,8 @@ logical-pixel frames.  The change applies to the next session restart.")
            (define-key map (kbd "T") #'etaf-video-player--toggle-theme)
            (define-key map (kbd "o") #'etaf-video-player-open-file)
            (define-key map (kbd "u") #'etaf-video-player-open-url)
+           (define-key map (kbd "c") #'etaf-video-player--subtitle-toggle-command)
+           (define-key map (kbd "S") #'etaf-video-player-save-screenshot)
            (define-key map (kbd "d") #'etaf-video-player-demo)
            (define-key map (kbd "C-c h") #'etaf-video-player--help-command)
            (define-key map (kbd "q") #'etaf-video-player-close)
@@ -154,10 +185,12 @@ record owns the playlist, the current item, the canvas size, the playback
 rate, the audio state and the status line."
   buffer spec handle queue index loop shuffle
   columns rows speed audio volume window-rows
+  subtitle subtitle-file subtitle-on
+  history-at
   spec-ref columns-ref rows-ref speed-ref audio-ref volume-ref
   queue-ref index-ref loop-ref shuffle-ref theme-ref layout-ref
-  playing playing-ref progress-ref hud-text clock-text volume-text hud-timer
-  sample sample-fps ended-seen explicit-grid stage-ref)
+  playing playing-ref progress-ref hud-text clock-text duration-text
+  volume-text hud-timer sample sample-fps ended-seen explicit-grid stage-ref)
 
 (defun etaf-video-player--current ()
   "Return the current buffer's player, or signal `user-error'."
@@ -293,15 +326,13 @@ still centers inside the measured stage."
             (etaf-video-player--player-sample-fps player) fps))
     fps))
 
-(defun etaf-video-player--hud (player state)
-  "Return PLAYER's one-line status text for STATE."
-  (format "%s · %s / %s · %.0ffps"
-          (cond ((plist-get state :ended) "已结束")
-                ((plist-get state :playing) "播放中")
-                (t "已暂停"))
-          (etaf-video-player--clock (plist-get state :position))
-          (etaf-video-player--clock (plist-get state :duration))
-          (etaf-video-player--sampled-fps player state)))
+(defun etaf-video-player--hud (state)
+  "Return the one-line playback status for STATE.
+The clocks live in the transport bar, so the header reports the state
+alone instead of repeating the timeline."
+  (cond ((plist-get state :ended) "已结束")
+        ((plist-get state :playing) "播放中")
+        (t "已暂停")))
 
 (defun etaf-video-player--player-render (player)
   "Publish PLAYER's transport and status text from the live video state.
@@ -313,6 +344,12 @@ geometry, so the View is never republished for a playback second."
                    (etaf-video-player--player-buffer player)))
          (playing (and (plist-get state :playing) t))
          (duration (plist-get (etaf-video-player--player-spec player) :duration)))
+    ;; Keep the frame-rate sample fresh for `etaf-video-player-state' even
+    ;; though the header no longer displays it.
+    (etaf-video-player--sampled-fps player state)
+    ;; Persist the playback position on a slow cadence while playing.
+    (when (plist-get state :playing)
+      (etaf-video-player--player-record-position player state))
     ;; The play/pause control is a reactive toggle: writing its source
     ;; repaints one icon through the retained update path instead of
     ;; publishing the View.
@@ -330,6 +367,66 @@ geometry, so the View is never republished for a playback second."
             (etaf-video-player--player-advance player)))
       (setf (etaf-video-player--player-ended-seen player) nil))))
 
+(defun etaf-video-player--subtitle-display-text (player position)
+  "Return the subtitle line PLAYER shows at POSITION, possibly empty."
+  (let ((cues (etaf-video-player--player-subtitle player)))
+    (if (and cues (etaf-video-player--player-subtitle-on player))
+        (or (etaf-video-player-subtitle-text-at cues position) "")
+      "")))
+
+(defun etaf-video-player--player-set-subtitle (player cues file)
+  "Install CUES from FILE into PLAYER; both nil clears the track.
+A non-nil CUES starts shown; the transport repaints on the next tick."
+  (setf (etaf-video-player--player-subtitle player) cues
+        (etaf-video-player--player-subtitle-file player) file
+        (etaf-video-player--player-subtitle-on player) (and cues t)))
+
+(defun etaf-video-player--player-adopt-subtitle (player spec)
+  "Load the subtitle file beside SPEC into PLAYER when one exists.
+A broken track only leaves the player without subtitles; it never breaks
+playback."
+  (let* ((file (and (eq (plist-get spec :kind) 'file)
+                    (etaf-video-player-subtitle-beside (plist-get spec :file))))
+         (cues (and file (ignore-errors (etaf-video-player-subtitle-parse file)))))
+    (etaf-video-player--player-set-subtitle player cues file)))
+
+(defun etaf-video-player--player-source-file (player)
+  "Return the local file PLAYER is watching, or nil."
+  (let ((spec (etaf-video-player--player-spec player)))
+    (and (eq (plist-get spec :kind) 'file) (plist-get spec :file))))
+
+(defun etaf-video-player--player-record-position (player state &optional force)
+  "Save PLAYER's playback position from STATE.
+Writes are throttled to `etaf-video-player--history-interval' unless FORCE
+is non-nil (queue switches and closing).  Only local files carry history."
+  (when-let* ((file (etaf-video-player--player-source-file player)))
+    (let ((now (float-time))
+          (position (or (plist-get state :position) 0)))
+      (when (and (numberp position)
+                 (> position 0)
+                 (or force
+                     (>= (- now (or (etaf-video-player--player-history-at player) 0))
+                         etaf-video-player--history-interval)))
+        (setf (etaf-video-player--player-history-at player) now)
+        (etaf-video-player-history-record file position (plist-get state :duration))))))
+
+(defun etaf-video-player--player-resume (player)
+  "Continue PLAYER from its saved position when the record is useful.
+Positions near the start or the end restart from zero, so a finished video
+plays again instead of ending immediately."
+  (when-let* ((file (etaf-video-player--player-source-file player))
+              (record (etaf-video-player-history-position file))
+              (position (car record))
+              ((numberp position))
+              ((> position etaf-video-player--resume-min-seconds)))
+    (let* ((spec (etaf-video-player--player-spec player))
+           (duration (or (plist-get spec :duration) (cdr record))))
+      (when (or (not (numberp duration))
+                (<= duration 0)
+                (< position (- duration etaf-video-player--resume-end-margin)))
+        (etaf-video-seek (etaf-video-player--player-handle player) position)
+        (message "从 %s 继续播放" (etaf-video-player--clock position))))))
+
 (defun etaf-video-player--publish-status (player runtime state duration)
   "Publish PLAYER's status Hosts through the retained content boundary.
 The texts live in plain fields and reach their Hosts in one explicit retained
@@ -338,19 +435,24 @@ consuming Component and republish the tree on every playback second; the
 progress fill stays a controlled value because the range moves it through
 its own retained geometry binding."
   (let* ((position (or (plist-get state :position) 0))
-         (hud (etaf-video-player--hud player state))
-         (clock-text (format "%s / %s" (etaf-video-player--clock position)
-                             (etaf-video-player--clock duration)))
-         (volume-text (format "%d%%" (etaf-video-player--player-volume player))))
+         (hud (etaf-video-player--hud state))
+         (clock-text (etaf-video-player--clock position))
+         (duration-text (etaf-video-player--clock
+                         (or (plist-get state :duration) duration)))
+         (volume-text (format "%d%%" (etaf-video-player--player-volume player)))
+         (subtitle-text (etaf-video-player--subtitle-display-text player position)))
     (setf (etaf-video-player--player-hud-text player) hud
           (etaf-video-player--player-clock-text player) clock-text
+          (etaf-video-player--player-duration-text player) duration-text
           (etaf-video-player--player-volume-text player) volume-text)
     (when (and runtime (etaf-runtime-mounted-p runtime))
       (etaf-runtime-update-host-contents
        runtime
        (list (cons etaf-video-player--hud-ref hud)
              (cons etaf-video-player--time-ref clock-text)
-             (cons etaf-video-player--volume-ref volume-text))))
+             (cons etaf-video-player--duration-ref duration-text)
+             (cons etaf-video-player--volume-ref volume-text)
+             (cons etaf-video-player--subtitle-ref subtitle-text))))
     (etaf-set-value (etaf-video-player--player-progress-ref player)
                     (if (and (numberp duration) (> duration 0))
                         (max 0.0 (min 100.0 (* 100.0 (/ (float position) duration))))
@@ -381,8 +483,9 @@ initialize the playback state."
                  :handle (make-symbol "etaf-video-player")
                  :columns columns :rows rows :speed speed
                  :audio (and audio t) :volume volume
-                 :hud-text "paused 00:00/--:--"
-                 :clock-text "00:00 / --:--"
+                 :hud-text "已暂停"
+                 :clock-text "00:00"
+                 :duration-text "--:--"
                  :volume-text (format "%d%%" volume)))
         (playing-ref (etaf-ref nil))
         (theme-ref (etaf-ref (etaf-video-player-theme-defaults))))
@@ -421,9 +524,14 @@ starts the new item playing; otherwise it stays paused."
          (count (length queue))
          (index (max 0 (min (1- count) index)))
          (spec (nth index queue)))
+    ;; Save where the outgoing item stopped before its session is replaced.
+    (ignore-errors
+      (etaf-video-player--player-record-position
+       player (etaf-video-player--state player) t))
     (setf (etaf-video-player--player-index player) index
           (etaf-video-player--player-spec player) spec
           (etaf-video-player--player-ended-seen player) nil)
+    (etaf-video-player--player-adopt-subtitle player spec)
     (etaf-batch
       (etaf-set-value (etaf-video-player--player-spec-ref player) spec)
       (etaf-set-value (etaf-video-player--player-index-ref player) index))
@@ -434,6 +542,7 @@ starts the new item playing; otherwise it stays paused."
     ;; A different source has its own aspect ratio, so re-fit the canvas to
     ;; the measured stage unless the caller fixed the grid.
     (etaf-video-player--sync-layout player)
+    (etaf-video-player--player-resume player)
     (etaf-video-player--player-render player)
     index))
 
@@ -491,17 +600,32 @@ stays a pure function of its props."
                                :duration (etaf-video-player--clock
                                           (plist-get item :duration))))))
 
-(defun etaf-video-player--details-meta (player spec)
-  "Return the (LABEL . VALUE) rows of PLAYER's details aside."
+(defun etaf-video-player--details-facts (spec index count)
+  "Return the video information rows for SPEC at INDEX of COUNT."
   (let ((width (plist-get spec :width))
-        (height (plist-get spec :height))
-        (index (etaf-video-player--player-index player))
-        (count (length (etaf-video-player--player-queue player))))
+        (height (plist-get spec :height)))
     (list (cons "分辨率" (if (and width height)
                           (format "%s × %s" width height)
                         "未知"))
           (cons "时长" (etaf-video-player--clock (plist-get spec :duration)))
-          (cons "列表" (format "%d / %d" (1+ index) count)))))
+          (cons "播放位置" (format "%d / %d" (1+ index) count)))))
+
+(defun etaf-video-player--details-playback (speed loop shuffle audio volume)
+  "Return the playback-setting rows from the shared playback sources."
+  (list (cons "速度" (format "%gx" (etaf-video-player--view-value speed)))
+        (cons "循环" (pcase (etaf-video-player--view-value loop)
+                       ('all "列表") ('one "单集") (_ "关闭")))
+        (cons "随机" (if (etaf-video-player--view-value shuffle) "开" "关"))
+        (cons "声音" (if (etaf-video-player--view-value audio) "开" "关"))
+        (cons "音量" (format "%d%%" (etaf-video-player--view-value volume)))))
+
+(defun etaf-video-player--details-canvas (columns rows ratio)
+  "Return the canvas rows for COLUMNS by ROWS at device RATIO."
+  (list (cons "尺寸" (format "%d × %d" columns rows))
+        (cons "倍率" (if (numberp ratio)
+                         (format "%gx" ratio)
+                       "自动"))
+        (cons "帧率上限" (format "%d fps" etaf-video-player-display-fps))))
 
 (defun etaf-video-player--player-seek-relative (player delta)
   "Move PLAYER DELTA seconds from its current position and repaint."
@@ -548,7 +672,8 @@ and the play/pause icon repaint without a View rebuild."
          (layout (etaf-value (etaf-video-player--player-layout-ref player)))
          (stage-facts (etaf-value (etaf-video-player--player-stage-ref player)))
          (stage-left-px (or (car-safe stage-facts) 0))
-         (stage-top-rows (or (cdr-safe stage-facts) 0))
+         (stage-top-rows (or (cdr-safe stage-facts)
+                             etaf-video-player--stage-top-fallback))
          (viewport-width (or (car-safe layout) 0))
          (viewport-rows (or (cdr-safe layout) 0))
          (sidebar (>= viewport-width etaf-video-player--sidebar-min-pixels))
@@ -560,6 +685,11 @@ and the play/pause icon repaint without a View rebuild."
                     0
                   (max 0 (min (- (length queue) visible) (- index (/ visible 2))))))
          (duration (plist-get spec :duration))
+         (ratio (or etaf-video-player-device-pixel-ratio
+                    (ignore-errors (frame-scale-factor))))
+         (facts (etaf-video-player--details-facts spec index (length queue)))
+         (playback (etaf-video-player--details-playback speed loop shuffle audio volume))
+         (canvas-facts (etaf-video-player--details-canvas columns canvas-rows ratio))
          ;; One layer per region, so a frame repaints only the canvas plane
          ;; without re-composing surrounding flow content.  Lanes are 30ch playlist, 1ch gutter, stage, 1ch gutter,
          ;; 28ch details; every length is a design constant or the published
@@ -570,29 +700,30 @@ and the play/pause icon repaint without a View rebuild."
          (stage-width (list 'calc (list '- (list 'px viewport-width)
                                         (list 'ch (+ stage-left-ch stage-right-ch)))))
          (details-left (list 'calc (list '- (list 'px viewport-width) (list 'ch 29))))
-         (transport-top (+ 2 body-rows))
-         (footer-top (+ transport-top etaf-video-player--bar-rows)))
+         (transport-top (+ 1 body-rows))
+         (footer-top (+ transport-top etaf-video-player--bar-rows))
+         ;; The subtitle line sits right under the picture; when the canvas
+         ;; reaches the last body row it takes that row instead of leaving
+         ;; the body.
+         (subtitle-top (min (+ stage-top-rows canvas-rows 1) body-rows)))
     (etaf-view
      (box :position 'relative
            :on-direction #'etaf-video-player--direction
            :width (list 'px viewport-width)
            :height (list 'lh viewport-rows)
-           :background-color (etaf-video-player-color :surface)
+           :background-color (etaf-video-player-color :bg)
            :color (etaf-video-player-color :ink)
            :overflow 'hidden
-       ;; One padding row keeps the header off the window edge.
-       (box :position 'absolute :left '(px 0) :top '(lh 0)
-            :width (list 'px viewport-width) :height '(lh 1)
-            :background-color (etaf-video-player-color :surface))
        (etaf-video-player--view-header
-        :position 'absolute :left '(px 0) :top '(lh 1)
+        :position 'absolute :left '(px 0) :top '(lh 0)
         :width (list 'px viewport-width) :height '(lh 1)
         :title (etaf-video-player--title spec)
         :status-ref etaf-video-player--hud-ref
         :status (etaf-video-player--player-hud-text player)
-        :compact (not sidebar))
+        :on-toggle-theme (lambda () (etaf-video-player--toggle-theme))
+        :on-help (lambda () (call-interactively #'etaf-help)))
        (etaf-video-player--view-playlist
-        :if sidebar :position 'absolute :left '(ch 0) :top '(lh 2)
+        :if sidebar :position 'absolute :left '(ch 0) :top '(lh 1)
         :width '(ch 30) :height (list 'lh body-rows)
         :count (length queue)
         :entries (etaf-video-player--playlist-entries player start visible)
@@ -602,22 +733,17 @@ and the play/pause icon repaint without a View rebuild."
                              (length queue))
                    (format "%d 个视频" (length queue)))
         :on-press (lambda (position) (etaf-video-player-play-index position)))
-       (box :position 'absolute :left stage-left :top '(lh 2)
+       (box :position 'absolute :left stage-left :top '(lh 1)
             :width stage-width :height (list 'lh body-rows)
-            :overflow 'hidden :background-color (etaf-video-player-color :surface)
+            :overflow 'hidden :background-color (etaf-video-player-color :stage)
             :ref etaf-video-player--stage-ref
             :id (symbol-name etaf-video-player--stage-ref))
        (etaf-video-player--view-details
-        :if details :position 'absolute :left details-left :top '(lh 2)
+        :if details :position 'absolute :left details-left :top '(lh 1)
         :width '(ch 28) :height (list 'lh body-rows)
-        :speed speed :audio audio :loop loop :shuffle shuffle
         :title (etaf-video-player--title spec)
         :source (etaf-video-player--source-label spec)
-        :meta (etaf-video-player--details-meta player spec)
-        :columns columns :rows canvas-rows
-        :ratio (or etaf-video-player-device-pixel-ratio
-                         (ignore-errors (frame-scale-factor)))
-        :fps etaf-video-player-display-fps
+        :facts facts :playback playback :canvas canvas-facts
         :on-toggle-theme (lambda () (etaf-video-player--toggle-theme)))
        ;; The canvas is a layer of its own; its offset is the measured stage
        ;; fact, not a chrome estimate.
@@ -636,20 +762,22 @@ and the play/pause icon repaint without a View rebuild."
                    :autoplay t
                    :handle handle
                    :on-press (lambda () (etaf-video-toggle-playback handle)))
+       (box :position 'absolute :left stage-left :top (list 'lh subtitle-top)
+            :width stage-width :height '(lh 1)
+            :overflow 'hidden :text-align 'center
+            :color (etaf-video-player-color :ink)
+         (text :ref etaf-video-player--subtitle-ref
+               :id (symbol-name etaf-video-player--subtitle-ref) ""))
        (etaf-video-player--view-transport
         :position 'absolute :left '(px 0) :top (list 'lh transport-top)
         :width (list 'px viewport-width) :height (list 'lh etaf-video-player--bar-rows)
         :progress (etaf-video-player--player-progress-ref player)
         :playing-ref (etaf-video-player--player-playing-ref player)
-        :title (etaf-video-player--title spec)
-        :meta (format "%s · %s · %d/%d"
-                      (if (and (plist-get spec :width) (plist-get spec :height))
-                          (format "%s×%s" (plist-get spec :width) (plist-get spec :height))
-                        "未知分辨率")
-                      (etaf-video-player--clock duration)
-                      (1+ index) (length queue))
         :time (etaf-video-player--player-clock-text player)
+        :duration (or (etaf-video-player--player-duration-text player)
+                      (etaf-video-player--clock duration))
         :time-ref etaf-video-player--time-ref
+        :duration-ref etaf-video-player--duration-ref
         :volume-ref etaf-video-player--volume-ref
         :volume-text (etaf-video-player--player-volume-text player)
         :audio-ref (etaf-video-player--player-audio-ref player)
@@ -675,10 +803,8 @@ and the play/pause icon repaint without a View rebuild."
        (etaf-video-player--view-footer
         :position 'absolute :left '(px 0) :top (list 'lh footer-top)
         :width (list 'px viewport-width) :height '(lh 1)
-        :hints etaf-video-player--hint-line)
-       (box :position 'absolute :left '(px 0) :top (list 'lh (1+ footer-top))
-            :width (list 'px viewport-width) :height '(lh 1)
-            :background-color (etaf-video-player-color :surface))))))
+        :hints (if sidebar etaf-video-player--hint-line
+                 etaf-video-player--hint-line-compact))))))
 
 (defun etaf-video-player--view (player)
   "Return the mountable View of PLAYER."
@@ -871,10 +997,12 @@ unsupported sources signal `user-error' before any process starts."
                     :loop (or (plist-get hints :loop) 'none)
                     :shuffle (plist-get hints :shuffle))))
       (setf (etaf-video-player--player-explicit-grid player) (and explicit t))
+      (etaf-video-player--player-adopt-subtitle player (etaf-video-player--player-spec player))
       (condition-case problem
           (progn
             (with-current-buffer buffer
               (setq-local etaf-video-player--player player)
+              (setq-local mode-line-format nil)
               (setq-local truncate-lines t)
               (setq-local auto-hscroll-mode nil)
               ;; A video frame owns the whole canvas; a bar or box cursor over
@@ -897,6 +1025,7 @@ unsupported sources signal `user-error' before any process starts."
             (etaf-mount buffer (etaf-video-player--view player))
             (etaf-video-player--install-size-hook)
             (etaf-video-player--sync-layout player)
+            (etaf-video-player--player-resume player)
             (setf (etaf-video-player--player-hud-timer player)
                   (run-at-time 0.0 etaf-video-player--hud-interval
                                #'etaf-video-player--player-tick player))
@@ -936,6 +1065,10 @@ connection is retried up to five seconds."
   "Release PLAYER and close BUFFER without signaling."
   (etaf-video-player--restore-frame-background)
   (when player
+    ;; Closing is the last chance to save where playback stopped.
+    (ignore-errors
+      (etaf-video-player--player-record-position
+       player (etaf-video-player--state player) t))
     (ignore-errors (etaf-video-player--player-close player)))
   (when (buffer-live-p buffer)
     (with-current-buffer buffer
@@ -1116,7 +1249,8 @@ Keys are `:source', `:playing', `:position', `:duration', `:speed',
 `:columns', `:rows', `:mode' (requested, always `image'), `:render-mode'
 (the effective mode, `ascii' on a terminal), `:fps' (display rate),
 `:presented-fps', `:source-fps', `:source-width', `:source-height',
-`:received', `:presented', `:dropped', `:audio', `:volume' and `:ended'.
+`:received', `:presented', `:dropped', `:audio', `:volume', `:subtitle-file'
+(the loaded track or nil), `:subtitle-on' and `:ended'.
 It reads the live player without changing it, and signals `user-error'
 outside a player buffer."
   (let* ((player (etaf-video-player--current))
@@ -1146,6 +1280,8 @@ outside a player buffer."
           :index (etaf-video-player--player-index player)
           :loop (etaf-video-player--player-loop player)
           :shuffle (and (etaf-video-player--player-shuffle player) t)
+          :subtitle-file (etaf-video-player--player-subtitle-file player)
+          :subtitle-on (and (etaf-video-player--player-subtitle-on player) t)
           :ended (plist-get state :ended))))
 
 (defun etaf-video-player--forward-command ()
@@ -1223,6 +1359,101 @@ outside a player buffer."
   (interactive)
   (let ((player (etaf-video-player--current)))
     (etaf-video-player-set-audio (not (etaf-video-player--player-audio player)))))
+
+;;;###autoload
+(defun etaf-video-player-subtitle-load (file)
+  "Load the subtitle FILE into the current player.
+FILE must be a readable SubRip (`.srt') or WebVTT (`.vtt') track; it replaces
+any current track and starts shown.  Signals `user-error' outside a player
+buffer and `etaf-video-player-subtitle-error' when the file cannot be read.
+Returns the parsed cues."
+  (interactive
+   (list (read-file-name
+          "字幕文件: "
+          (let ((spec (and etaf-video-player--player
+                           (etaf-video-player--player-spec etaf-video-player--player))))
+            (if (plist-get spec :file)
+                (file-name-directory (plist-get spec :file))
+              default-directory)))))
+  (let* ((player (etaf-video-player--current))
+         (cues (etaf-video-player-subtitle-parse file)))
+    (etaf-video-player--player-set-subtitle player cues file)
+    (etaf-video-player--player-render player)
+    (message "字幕已加载：%s（%d 条）" (file-name-nondirectory file) (length cues))
+    cues))
+
+;;;###autoload
+(defun etaf-video-player-save-screenshot (&optional file)
+  "Save the current video frame as a PNG image.
+FILE names the output image; nil writes a timestamped PNG beside the playing
+file (or in the temporary directory for a stream).  The frame is decoded with
+ffmpeg in the background at the current playback second, and the echo area
+reports the result.  Returns the output path; signals `user-error' outside a
+player or for the built-in demo, which has no frame to capture."
+  (interactive)
+  (let* ((player (etaf-video-player--current))
+         (state (etaf-video-player--state player))
+         (spec (etaf-video-player--player-spec player))
+         (position (or (plist-get state :position) 0))
+         (source (pcase (plist-get spec :kind)
+                   ('file (plist-get spec :file))
+                   ('url (plist-get spec :url))
+                   (_ nil)))
+         (output (or file (etaf-video-player--screenshot-output spec))))
+    (unless source
+      (user-error "The built-in demo has no frame to capture"))
+    (make-process
+     :name "etaf-video-player-screenshot"
+     :command (list etaf-video-ffmpeg-program
+                    "-hide_banner" "-loglevel" "error"
+                    "-ss" (format "%.3f" position)
+                    "-i" source
+                    "-frames:v" "1" "-y" output)
+     :noquery t
+     :sentinel (lambda (process event)
+                 (when (memq (process-status process) '(exit signal))
+                   (if (and (eq 'exit (process-status process))
+                            (zerop (process-exit-status process))
+                            (file-readable-p output))
+                       (message "截图已保存：%s" output)
+                     (message "截图失败：%s" (string-trim event))))))
+    output))
+
+(defun etaf-video-player--screenshot-output (spec)
+  "Return the default PNG path for SPEC's current frame."
+  (let ((base (pcase (plist-get spec :kind)
+                ('file (file-name-base (plist-get spec :file)))
+                ('url "stream")
+                (_ "frame"))))
+    (expand-file-name
+     (format "%s-%s.png" base (format-time-string "%H%M%S"))
+     (if (eq (plist-get spec :kind) 'file)
+         (file-name-directory (plist-get spec :file))
+       temporary-file-directory))))
+
+(defun etaf-video-player--subtitle-toggle-command ()
+  "Toggle subtitles for the current player.
+With a track loaded the key hides and shows it; without one it loads the
+track beside the video, or asks for a subtitle file when none exists."
+  (interactive)
+  (let* ((player (etaf-video-player--current))
+         (file (etaf-video-player--player-subtitle-file player)))
+    (cond
+     ((etaf-video-player--player-subtitle-on player)
+      (setf (etaf-video-player--player-subtitle-on player) nil)
+      (etaf-video-player--player-render player)
+      (message "字幕已关闭"))
+     (file
+      (setf (etaf-video-player--player-subtitle-on player) t)
+      (etaf-video-player--player-render player)
+      (message "字幕已开启：%s" (file-name-nondirectory file)))
+     (t
+      (let* ((spec (etaf-video-player--player-spec player))
+             (beside (and (eq (plist-get spec :kind) 'file)
+                          (etaf-video-player-subtitle-beside (plist-get spec :file)))))
+        (if beside
+            (etaf-video-player-subtitle-load beside)
+          (call-interactively #'etaf-video-player-subtitle-load)))))))
 
 (defun etaf-video-player--preset-command ()
   "Apply the grid preset named by the key that invoked this command."

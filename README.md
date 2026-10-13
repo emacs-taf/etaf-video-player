@@ -14,6 +14,10 @@ The player at a wide frame:
 
 ![The player at a wide frame](examples/etaf-video-player-wide.png)
 
+The same layout in the light appearance:
+
+![The player in the light appearance](examples/etaf-video-player-light.png)
+
 ## Capabilities
 
 - Playback of local video files through ffmpeg; the built-in demo generates a
@@ -31,9 +35,18 @@ The player at a wide frame:
   shuffle are one key away, and a finished item advances automatically.
 - Play, pause, single frame stepping, seeking, 0.5x to 8x rates, volume keys
   and a sound toggle.
-- Dark and light three-pane layouts with consistent SVG controls, readable
-  secondary text, and a retained volume/seek slider. Narrow windows hide the
-  side panes without changing the control identities.
+- Subtitles: a SubRip (`.srt') or WebVTT (`.vtt') track beside a local file
+  loads automatically and renders as one line under the canvas; `c` hides it,
+  shows it again, or asks for a file, and inline markup is stripped.
+- Resume: local playback positions persist in a small SQLite database and
+  reopening a file continues where it stopped, unless the record is near the
+  start or the end.
+- Screenshots: `S` decodes the current frame with ffmpeg into a PNG beside
+  the video (or the temporary directory for a stream).
+- Dark and light appearances share one three-pane layout: the page, panes,
+  header and transport each paint one depth step, and the stage follows the
+  appearance so both palettes stay readable.  Narrow windows hide the side
+  panes without changing the control identities.
 - A 24fps presentation cap by default, with automatic Retina resolution;
   `etaf-video-player-display-fps` changes the cap for new players.
 - Latest-frame-wins display: when decoding outruns display, older frames are
@@ -48,7 +61,7 @@ The player at a wide frame:
 | Requirement | Why | Check |
 | --- | --- | --- |
 | Emacs 29.1 or newer | the ETAF runtime | `emacs --version` |
-| `etaf`, `etaf-ui`, `ebox`, `ecss` | the framework; each root entry must be on `load-path` | every checkout is readable |
+| `etaf`, `etaf-ui`, `ebox`, `ecss`, `etaf-db` | the framework and the playback history database; each root entry must be on `load-path` | every checkout is readable |
 | ffmpeg | decoding and scaling | `ffmpeg -version` |
 | ffprobe | duration, frame rate and video size | `ffprobe -version` |
 | ffplay | sound | `ffplay -version` |
@@ -66,6 +79,7 @@ variables documented in ETAF's manual.
 (add-to-list 'load-path "/path/to/ebox")
 (add-to-list 'load-path "/path/to/etaf")
 (add-to-list 'load-path "/path/to/etaf-ui")
+(add-to-list 'load-path "/path/to/etaf-db")
 (add-to-list 'load-path "/path/to/etaf-video-player")
 (require 'etaf-video-player)
 
@@ -81,6 +95,9 @@ variables documented in ETAF's manual.
 (etaf-video-player-open '(:file "clip.mp4" :columns 120 :rows 34 :volume 60))
 (etaf-video-player-open '(:playlist ((:file "a.mp4") (:file "b.mp4")) :loop 'all))
 (etaf-video-player-set-audio nil)        ; watch it muted
+(etaf-video-player-subtitle-load "clip.srt")    ; attach a subtitle track
+(etaf-video-player-save-screenshot "frame.png") ; save the current frame
+(etaf-video-player-history-position "clip.mp4") ; the saved playback record
 ```
 
 ## Keys
@@ -97,6 +114,8 @@ variables documented in ETAF's manual.
 | `F` | fit the canvas to the window |
 | `o` / `u` / `d` | open a file / open a URL / replay the built-in demo |
 | `>` / `<` | next / previous playlist item |
+| `c` | hide, show or load subtitles |
+| `S` | save the current frame as a PNG |
 | `L` / `s` | cycle loop mode / toggle shuffle |
 | `T` | switch dark/light appearance |
 | `C-c h` / `q` | help / close |

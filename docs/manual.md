@@ -17,13 +17,15 @@ Runtime.
 The player buffer hides its cursor, so no cursor frame flashes around the
 picture.
 
-The window is a themed shell: a one-row title padding, a header with the live
+The window is a themed shell: a header row with the title and the live
 playback status, a playlist column and a details column that appear when the
-published viewport is wide enough, the video canvas in the stage between
-them, a progress bar you can click or drag to seek, and a transport row with
-play/pause, ±5 s, volume and mute controls.  The play/pause and sound glyphs
-change with the state, and the progress bar moves through retained geometry
-instead of republishing the View.
+published viewport is wide enough, the video stage between them, a transport
+with a click-or-drag progress bar and a centred control row, and a hint
+footer.  The page, panes, header and transport each paint one depth step of
+the palette, so panes stay separated in both appearances; the stage follows
+the appearance while letterbox frames stay black.  The play/pause and sound
+glyphs change with the state, and the progress bar moves through retained
+geometry instead of republishing the View.
 
 The canvas is measured, not guessed: after every layout change the
 application reads the framework's published viewport and the stage Host's
@@ -110,6 +112,40 @@ stream stays silent, and so does a missing ffplay. The sound icon and the
 details pane report the requested state, not proof of audible output.  ffplay is part of the normal
 ffmpeg installation; `etaf-video-ffplay-program` points at another one.
 
+## Resume and screenshots
+
+Local playback positions persist in a small SQLite database built with
+`etaf-db` (`~/.emacs.d/etaf-video-player/history.sqlite3` by default;
+`etaf-video-player-history-file` repoints it).  The position is written while
+playing on a slow cadence and again when the file closes; reopening a file
+seeks to the saved second when it is past five seconds and not within ten
+seconds of the end, and the echo area reports where playback resumed.  The
+database fails open: without SQLite, history is off and playback is
+unaffected.  `etaf-video-player-history-record` and
+`etaf-video-player-history-position` read and write records directly.
+
+`S` (`etaf-video-player-save-screenshot`) decodes the current frame with
+ffmpeg into a PNG beside the video, named `<video>-HHMMSS.png`, and reports
+the path in the echo area; a stream writes into the temporary directory.  The
+decode runs in the background, so playback is not interrupted.  The built-in
+demo has no frame to capture and signals `user-error`.
+
+## Subtitles
+
+A local file loads the first readable track beside it automatically, checking
+`movie.srt`, `movie.vtt` and the common Chinese suffixes (`movie.zh.srt`);
+`etaf-video-player-subtitle-extensions` lists the probe order.  The cue
+covering the playback second renders as one line under the canvas and
+repaints through the retained content boundary with the clocks.  `c` hides
+the current track, shows it again, or asks for a subtitle file when none is
+loaded; `etaf-video-player-subtitle-load` attaches one explicitly.
+
+SubRip and WebVTT files parse; malformed blocks are skipped and inline markup
+(`<i>`, font tags, `{\...}` styling) is stripped, so a track with a few bad
+cues still plays.  `etaf-video-player-subtitle-parse` returns the cue list
+and `etaf-video-player-subtitle-text-at` answers a playback second; a track
+that cannot be read signals `etaf-video-player-subtitle-error`.
+
 ## Keys
 
 | Key | Action |
@@ -124,14 +160,17 @@ ffmpeg installation; `etaf-video-ffplay-program` points at another one.
 | `F` | fit to the window |
 | `o`, `u`, `d` | open a file / open a URL / demo |
 | `>`, `<` | next / previous playlist item |
+| `c` | hide, show or load subtitles |
+| `S` | save the current frame as a PNG |
 | `L`, `s` | loop off/list/one, shuffle |
 | `T` | switch dark/light appearance |
 | `C-c h`, `q` | help / close |
 
-`F` and `etaf-video-player-fit` reserve eight rows for the header, transport
-and footer. From 100 columns the playlist occupies 30 columns; from 150
-columns the details pane occupies another 28. The remaining space determines
-the aspect-preserving canvas size. The same fitting runs
+`F` and `etaf-video-player-fit` reserve six rows for the header, transport
+and footer.  From about 100 character columns the playlist occupies 30
+columns; from about 143 the details pane occupies another 28 (the thresholds
+compare the published viewport in logical pixels).  The remaining space
+determines the aspect-preserving canvas size. The same fitting runs
 automatically through `window-size-change-functions` when the window changes
 size, so a resized frame keeps a canvas that fits.
 
@@ -145,7 +184,8 @@ built without prompts:
 (etaf-video-player-seek 12.5)
 (etaf-video-player-set-speed 0.5)
 (etaf-video-player-set-audio nil)
-(etaf-video-player-set-volume 0)
+(etaf-video-player-subtitle-load "clip.srt")
+(etaf-video-player-save-screenshot "/tmp/frame.png")
 (etaf-video-player-state)
 ;; => (:source "clip.mp4" :playing t :position 12.5 :duration 300.0 ...)
 ```
@@ -155,7 +195,8 @@ Every control function operates on the current buffer's player and signals
 from an interactive command bound there. `etaf-video-player-state` returns a
 detached plist; the interesting keys are `:playing`, `:position`, `:duration`,
 `:render-mode`, `:source-width`, `:source-height`, `:received`, `:presented`,
-`:dropped`, `:audio`, `:volume` and `:ended`.
+`:dropped`, `:audio`, `:volume`, `:subtitle-file`, `:subtitle-on` and
+`:ended`.
 
 | Variable | Meaning |
 | --- | --- |
@@ -165,6 +206,8 @@ detached plist; the interesting keys are `:playing`, `:position`, `:duration`,
 | `etaf-video-player-grid-presets` | character to canvas width, used by `1`-`4` |
 | `etaf-video-player-display-fps` | presentation cap for new players, default 24 |
 | `etaf-video-player-theme-mode` | `dark` (default) or `light`; T switches the running player |
+| `etaf-video-player-subtitle-extensions` | file suffixes probed beside a local video |
+| `etaf-video-player-history-file` | playback database file; nil uses the Emacs user directory |
 | `etaf-video-ffmpeg-program` | ffmpeg name or path; use a wrapper to add decoder options (ETAF) |
 | `etaf-video-ffprobe-program` | ffprobe name or path; optional (ETAF) |
 | `etaf-video-ffplay-program` | ffplay name or path used for sound (ETAF) |

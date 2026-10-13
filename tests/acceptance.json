@@ -6,7 +6,8 @@
     "../../etaf",
     "../../etaf-ui",
     "../../ebox",
-    "../../ecss"
+    "../../ecss",
+    "../../etaf-db"
   ],
   "support": [],
   "cases": [
@@ -79,6 +80,26 @@
       "name": "etaf-video-player-tests-playlist-shuffle-stays-in-range",
       "file": "tests/etaf-video-player-tests.el",
       "purpose": "Shuffle reports its flag and next picks a different queue item within range."
+    },
+    {
+      "name": "etaf-video-player-tests-subtitles-parse-time-and-probe",
+      "file": "tests/etaf-video-player-tests.el",
+      "purpose": "SubRip and WebVTT tracks parse into timed cues, the timeline answers lookups per second, unreadable files raise the documented error and the beside probe prefers the language suffix."
+    },
+    {
+      "name": "etaf-video-player-tests-subtitle-loads-beside-video-and-toggles",
+      "file": "tests/etaf-video-player-tests.el",
+      "purpose": "A local video adopts the track beside it, the subtitle line reaches the buffer, and the c key hides and restores it."
+    },
+    {
+      "name": "etaf-video-player-tests-history-records-and-resumes",
+      "file": "tests/etaf-video-player-tests.el",
+      "purpose": "Playback positions round-trip per file, a useful record resumes after open, and a record at the very end restarts from zero."
+    },
+    {
+      "name": "etaf-video-player-tests-screenshot-writes-a-png",
+      "file": "tests/etaf-video-player-tests.el",
+      "purpose": "The screenshot command decodes the current frame with a real ffmpeg into a readable PNG and returns the output path."
     }
   ]
 }

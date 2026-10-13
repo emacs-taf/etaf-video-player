@@ -11,7 +11,11 @@ re-implemented here.
 
 | Module | Owns |
 | --- | --- |
-| `etaf-video-player-app` | player state (canvas, rate, audio, volume, status), the View, the buffer, the keymap, window fitting and the public commands |
+| `etaf-video-player-app` | player state (canvas, rate, audio, volume, status), the View assembly, the buffer, the keymap, window fitting and the public commands |
+| `etaf-video-player-views` | the shell Components (header, playlist, details, transport, footer) as pure projections |
+| `etaf-video-player-theme` | the four-step palette for both appearances and the ETAF UI token projection |
+| `etaf-video-player-subtitle` | SubRip/WebVTT parsing and the cue lookup for a playback second |
+| `etaf-video-player-history` | the SQLite playback-position store; every operation fails open |
 
 The root entry re-exports the supported subset; everything unlisted is
 internal.
@@ -41,12 +45,19 @@ internal.
    Hosts through one explicit retained content update; a reactive source write
    would re-render the consuming Component and republish the tree.  The
    progress fill stays a controlled range value because the range moves it
-   through its own retained geometry binding.
-5. Controls are declarative or imperative depending on the fact: canvas size
+   through its own retained geometry binding.  The subtitle line rides the
+   same update: the cue covering the current second comes from a binary search
+   over the parsed track.
+5. Playback positions persist for local files: a throttled write while
+   playing, a forced write when the queue switches or the player closes, and
+   one `history-position` lookup on open that seeks when the record is past
+   the start margin and not near the end.  A broken database leaves playback
+   untouched.
+6. Controls are declarative or imperative depending on the fact: canvas size
    and rate are View props, volume, sound and speed are shared reactive
    sources the Component reads in its playback effect, and play/pause, step
    and seek call the Component's handle functions.
-6. `etaf-video-player-close` cancels the status timer, restores the frame
+7. `etaf-video-player-close` cancels the status timer, restores the frame
    background it adopted, and unmounts the Runtime, which destroys the session
    and its sidecar. A failed open runs the same teardown, so no partial player
    survives a `user-error`.  Killing the buffer runs the same cleanup through

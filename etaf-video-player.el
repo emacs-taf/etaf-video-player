@@ -28,10 +28,11 @@
 ;; `etaf-video-player-open', `etaf-video-player-open-file' and
 ;; `etaf-video-player-demo' create it, the functions below drive it,
 ;; `etaf-video-player-state' reports it as plain data, and
-;; `etaf-video-player-close' releases it.  The default keymap binds the same
-;; commands: SPC play/pause, n step, f/b seek five seconds, +/- speed, [ and ]
-;; volume, a sound, 1-4 grid presets, F fit, o open, u url, d demo, ? help and
-;; q close.
+;; `etaf-video-player-close' releases it.  A subtitle track beside a local
+;; video loads automatically; press c to hide, show or load one.  The default
+;; keymap binds the same commands: SPC play/pause, n step, f/b seek five
+;; seconds, +/- speed, [ and ] volume, a sound, 1-4 grid presets, F fit,
+;; o open, u url, c subtitles, d demo, ? help and q close.
 ;;
 ;; Only the interfaces listed below are supported for use by other packages.
 ;; All unlisted symbols and implementation features are internal, including
@@ -111,9 +112,9 @@
 ;;
 ;; Function: etaf-video-player-fit ()
 ;; Fit the current player's canvas to the window showing it.
-;; Eight rows are reserved for the header, transport and footer. The playlist
-;; appears from 100 columns, the details pane from 150; their widths are
-;; subtracted from the canvas budget.
+;; Six rows are reserved for the header, transport and footer.  The playlist
+;; column appears from about 100 character columns and the details pane from
+;; about 143; their widths are subtracted from the canvas budget.
 ;;
 ;; Function: etaf-video-player-next ()
 ;;;###autoload (autoload 'etaf-video-player-next "etaf-video-player" nil t)
@@ -152,6 +153,51 @@
 ;;;###autoload (autoload 'etaf-video-player-cycle-speed "etaf-video-player" nil t)
 ;; Cycle the current player through the supported playback rates.
 ;;
+;; Function: etaf-video-player-subtitle-parse (file)
+;; Parse FILE into a sorted list of cues.
+;; FILE must be a readable SubRip (`.srt') or WebVTT (`.vtt') track; each cue
+;; is `(START END TEXT)' with START and END in playback seconds and TEXT one
+;; display line.  Malformed blocks are skipped and inline markup is stripped,
+;; so a track with a few bad cues still plays; an unreadable file signals
+;; `etaf-video-player-subtitle-error'.
+;;
+;; Function: etaf-video-player-subtitle-text-at (cues seconds)
+;; Return the text of the cue in CUES covering playback SECONDS, or nil.
+;;
+;; Function: etaf-video-player-subtitle-beside (video)
+;; Return the first readable subtitle file beside VIDEO, or nil.
+;; The probe checks the suffixes in `etaf-video-player-subtitle-extensions'
+;; in order, so `movie.zh.srt' wins over a bare track only when listed first.
+;;
+;; Function: etaf-video-player-subtitle-load (file)
+;;;###autoload (autoload 'etaf-video-player-subtitle-load "etaf-video-player" nil t)
+;; Load the subtitle FILE into the current player and return its cues.
+;; The track replaces any current one and starts shown.  A local video loads a
+;; matching track beside it automatically; pressing c hides the current track,
+;; shows it again, or asks for a file when none is loaded.
+;;
+;; Error: etaf-video-player-subtitle-error
+;; Signaled when a subtitle file cannot be read or parsed.
+;;
+;; Function: etaf-video-player-save-screenshot (&optional file)
+;;;###autoload (autoload 'etaf-video-player-save-screenshot "etaf-video-player" nil t)
+;; Save the current video frame as a PNG image and return the output path.
+;; FILE names the image; nil writes a timestamped PNG beside the playing
+;; file (or in the temporary directory for a stream).  The frame decodes in
+;; the background and the echo area reports the result; the built-in demo
+;; signals `user-error' because it has no frame to capture.
+;;
+;; Function: etaf-video-player-history-position (path)
+;; Return PATH's saved playback record as `(POSITION . DURATION)', or nil.
+;; A missing database, a missing row and any read failure all return nil.
+;;
+;; Function: etaf-video-player-history-record (path position duration)
+;; Save PATH's playback POSITION and source DURATION; returns POSITION.
+;; A row already present for PATH is replaced, and an unavailable database
+;; returns nil instead of signaling.  Local videos record their position
+;; while playing and when they close; reopening resumes when the position is
+;; past five seconds and not within ten seconds of the end.
+;;
 ;; Function: etaf-video-player-state ()
 ;; Return the current player's state as a detached plist.
 ;; Keys are `:source', `:playing', `:position', `:duration', `:speed',
@@ -159,9 +205,9 @@
 ;; (the effective mode, `ascii' when the frame cannot show images), `:fps'
 ;; (display timer rate), `:presented-fps', `:source-fps', `:source-width',
 ;; `:source-height', `:received', `:presented', `:dropped', `:audio',
-;; `:volume', `:title', `:queue-length', `:index', `:loop', `:shuffle' and
-;; `:ended'.  It reads the live player without changing it, and signals
-;; `user-error' outside a player buffer.
+;; `:volume', `:title', `:queue-length', `:index', `:loop', `:shuffle',
+;; `:subtitle-file', `:subtitle-on' and `:ended'.  It reads the live player
+;; without changing it, and signals `user-error' outside a player buffer.
 ;;
 ;; Variable: etaf-video-player-audio
 ;; Whether new players play their source's audio track.
@@ -179,9 +225,21 @@
 ;; This cap does not lower the source resolution or the device pixel ratio;
 ;; it is not a guarantee of the achieved frame rate.
 ;;
+;; Variable: etaf-video-player-subtitle-extensions
+;; File suffixes probed beside a video when it opens.
+;; The default checks `.srt' and `.vtt' first, then the common Chinese
+;; language suffixes; repoint it to prefer a different naming scheme.
+;;
+;; Variable: etaf-video-player-history-file
+;; Database file holding saved playback positions.
+;; Nil uses `etaf-video-player/history.sqlite3' under the Emacs user
+;; directory; a value that cannot be opened disables history instead of
+;; failing.
+;;
 ;; Variable: etaf-video-player-theme-mode
 ;; New-player appearance: `dark' (default) or `light', independent of Emacs's
-;; theme. Press T to switch the running player; the canvas stays dark.
+;; theme.  Press T to switch the running player; the stage follows the
+;; appearance while letterbox frames stay black.
 ;;
 ;; Variable: etaf-video-player-grid-presets
 ;; Canvas widths reached by the `1' to `4' keys.

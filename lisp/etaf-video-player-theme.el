@@ -8,9 +8,13 @@
 ;; theme, so it looks the same in every session.  `etaf-video-player-color' is
 ;; the palette lookup used by the Views; `etaf-video-player-theme-defaults'
 ;; projects the same palette onto the ETAF UI token contract consumed by
-;; etaf-ui Components (buttons, ranges, icons, dividers).  Both palettes share
-;; one layout, and the video canvas keeps its own darker stage surface because
-;; letterbox bars must never compete with the picture.
+;; etaf-ui Components (buttons, ranges, icons, dividers).  Both appearances
+;; share one layout and paint four depth steps -- page, card, raised surface
+;; and control track -- so panes stay visually separated in either mode.  The
+;; video stage paints near-black in the dark appearance (one immersive
+;; surface around the picture) and a shallow grey in the light one, where a
+;; full dark block would weigh the whole column down; the picture keeps its
+;; own letterbox either way.
 
 ;;; Code:
 
@@ -21,17 +25,28 @@
   :group 'applications)
 
 (defconst etaf-video-player--palettes
-  '((dark :bg "#0E1013" :surface "#15181D" :panel "#15181D" :panel2 "#1B1F26" :panel3 "#232832"
-          :line "#262B34" :ink "#E9ECF1" :muted "#98A0AC" :dim "#6A727E"
-          :accent "#5B8DEF" :accent-soft "#1A2436" :hover "#1B1F26"
-          :stage "#050607" :playing "#5B8DEF" :gold "#E8B45C" :ok "#4FB477"
-          :warn "#E8B45C" :danger "#FF7A7A" :danger-bg "#3A1D22" :info "#6FB4E8")
-    (light :bg "#FFFFFF" :surface "#F6F7F9" :panel "#F6F7F9" :panel2 "#EFF1F4" :panel3 "#E4E7EB"
-           :line "#E1E4E9" :ink "#1B1F24" :muted "#5C6470" :dim "#8A919C"
-           :accent "#2F6FED" :accent-soft "#E8EFFD" :hover "#F0F2F5"
-           :stage "#101318" :playing "#2F6FED" :gold "#B07A16" :ok "#2E7D4F"
-           :warn "#B07A16" :danger "#C0392B" :danger-bg "#FBE4E2" :info "#2C6FA8"))
-  "Palette of every supported appearance, keyed by mode.")
+  '((dark
+     ;; depth: page < card < raised < track
+     :bg "#0A0D12" :surface "#141820" :panel2 "#1B202B" :panel3 "#232A38"
+     :hover "#1D232F" :line "#2A303D"
+     :ink "#E9EDF4" :muted "#9AA4B4" :dim "#6B7484"
+     :accent "#5B8DEF" :accent-soft "#18243C"
+     :stage "#000000" :playing "#5B8DEF"
+     :gold "#E8B45C" :ok "#4FB477" :warn "#E8B45C"
+     :danger "#FF7A7A" :danger-bg "#3A1D22" :info "#6FB4E8")
+    (light
+     ;; page grey, cards white, one grey step below and a control track
+     :bg "#ECEEF2" :surface "#FFFFFF" :panel2 "#F5F6F9" :panel3 "#E3E6EC"
+     :hover "#F0F2F6" :line "#DADEE5"
+     :ink "#171A20" :muted "#5B6472" :dim "#8B93A0"
+     :accent "#2F6BE8" :accent-soft "#E6EDFC"
+     :stage "#E2E5EB" :playing "#2F6BE8"
+     :gold "#B07A16" :ok "#2E7D4F" :warn "#B07A16"
+     :danger "#C0392B" :danger-bg "#FBE4E2" :info "#2C6FA8"))
+  "Palette of every supported appearance, keyed by mode.
+The four depth keys are shared by both appearances: `:bg' is the page shell,
+`:surface' is a pane or card, `:panel2' is a raised surface such as the header
+or the footer, and `:panel3' is a control track and disabled fill.")
 
 (defcustom etaf-video-player-theme-mode 'dark
   "Appearance used by a new player.
@@ -61,11 +76,13 @@ result to `etaf-theme-provide' so shared etaf-ui Components use the same
 colors as the player's own Views."
   (let* ((dark (not (eq (or mode etaf-video-player-theme-mode) 'light)))
          (bg (etaf-video-player-color :bg mode))
-         (panel (etaf-video-player-color :panel mode))
+         (surface (etaf-video-player-color :surface mode))
+         (panel2 (etaf-video-player-color :panel2 mode))
          (panel3 (etaf-video-player-color :panel3 mode))
          (ink (etaf-video-player-color :ink mode))
          (line (etaf-video-player-color :line mode))
          (muted (etaf-video-player-color :muted mode))
+         (dim (etaf-video-player-color :dim mode))
          (accent (etaf-video-player-color :accent mode))
          (accent-soft (etaf-video-player-color :accent-soft mode))
          (ok (etaf-video-player-color :ok mode))
@@ -81,10 +98,10 @@ colors as the player's own Views."
          (info-bg (if dark "#14232F" "#E4F0FA"))
          (info-border (if dark "#2C4E66" "#A8CBE6")))
     (list
-     :ink ink :paper bg :panel panel :line line :muted muted
+     :ink ink :paper bg :panel surface :line line :muted muted
      :accent accent :accent-soft accent-soft
      :ui-fg ink :ui-bg bg :ui-border line :ui-muted-fg muted
-     :ui-disabled-fg muted :ui-disabled-bg panel :ui-disabled-border line
+     :ui-disabled-fg dim :ui-disabled-bg panel3 :ui-disabled-border line
      :ui-accent accent :ui-accent-fg "#FFFFFF" :ui-accent-soft-bg accent-soft
      :ui-button-primary-fg "#FFFFFF" :ui-button-primary-bg accent
      :ui-button-secondary-fg accent :ui-button-secondary-bg accent-soft
@@ -93,21 +110,21 @@ colors as the player's own Views."
      :ui-danger-fg danger :ui-danger-bg danger-bg :ui-danger-border danger-border
      :ui-warning-fg warn :ui-warning-bg warn-bg :ui-warning-border warn-border
      :ui-info-fg info :ui-info-bg info-bg :ui-info-border info-border
-     :ui-panel-fg ink :ui-panel-bg panel :ui-panel-border line
+     :ui-panel-fg ink :ui-panel-bg surface :ui-panel-border line
      :ui-divider-bg line :ui-progress-track panel3
      :ui-range-track panel3 :ui-range-fill accent
      :ui-table-border line :ui-table-selected-fg accent
      :ui-table-selected-bg accent-soft
-     :ui-shell-bg panel :ui-shell-fg ink :ui-shell-muted-fg muted
-     :ui-shell-item-fg muted :ui-shell-item-minimized-fg muted
+     :ui-shell-bg panel2 :ui-shell-fg ink :ui-shell-muted-fg muted
+     :ui-shell-item-fg muted :ui-shell-item-minimized-fg dim
      :ui-window-bg bg :ui-window-fg ink :ui-window-border line
-     :ui-window-title-bg panel :ui-window-title-fg muted
+     :ui-window-title-bg panel2 :ui-window-title-fg muted
      :ui-window-title-active-fg ink
-     :ui-picker-item-bg panel :ui-picker-item-fg ink
+     :ui-picker-item-bg surface :ui-picker-item-fg ink
      :ui-picker-item-muted-fg muted
      :ui-pagination-muted-fg muted
      :ui-data-grid-error-fg danger
-     :ui-checkbox-enabled-fg ink :ui-checkbox-disabled-fg muted)))
+     :ui-checkbox-enabled-fg ink :ui-checkbox-disabled-fg dim)))
 
 (provide 'etaf-video-player-theme)
 ;;; etaf-video-player-theme.el ends here

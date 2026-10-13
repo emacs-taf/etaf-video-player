@@ -2,8 +2,8 @@
 .NOTPARALLEL:
 EMACS ?= emacs
 PROVIDER_ROOT ?= $(if $(wildcard ../etaf/etaf.el),..,../..)
-LOAD_PATH = -L . -L lisp -L tests $(foreach package,etaf etaf-ui ebox ecss,-L $(PROVIDER_ROOT)/$(package))
-SOURCES = lisp/etaf-video-player-theme.el lisp/etaf-video-player-views.el lisp/etaf-video-player-app.el
+LOAD_PATH = -L . -L lisp -L tests $(foreach package,etaf etaf-ui ebox ecss etaf-db,-L $(PROVIDER_ROOT)/$(package))
+SOURCES = lisp/etaf-video-player-theme.el lisp/etaf-video-player-subtitle.el lisp/etaf-video-player-history.el lisp/etaf-video-player-views.el lisp/etaf-video-player-app.el
 SOURCES += etaf-video-player.el
 SOURCES += $(wildcard examples/*.el)
 
