@@ -724,7 +724,7 @@ and the play/pause icon repaint without a View rebuild."
         :on-help (lambda () (call-interactively #'etaf-help)))
        (etaf-video-player--view-playlist
         :if sidebar :position 'absolute :left '(ch 0) :top '(lh 1)
-        :width '(ch 30) :height (list 'lh body-rows)
+        :width '(ch 30) :height (list 'lh (+ body-rows 2))
         :count (length queue)
         :entries (etaf-video-player--playlist-entries player start visible)
         :active index
@@ -734,13 +734,13 @@ and the play/pause icon repaint without a View rebuild."
                    (format "%d 个视频" (length queue)))
         :on-press (lambda (position) (etaf-video-player-play-index position)))
        (box :position 'absolute :left stage-left :top '(lh 1)
-            :width stage-width :height (list 'lh body-rows)
+            :width stage-width :height (list 'lh (+ body-rows 2))
             :overflow 'hidden :background-color (etaf-video-player-color :stage)
             :ref etaf-video-player--stage-ref
             :id (symbol-name etaf-video-player--stage-ref))
        (etaf-video-player--view-details
         :if details :position 'absolute :left details-left :top '(lh 1)
-        :width '(ch 28) :height (list 'lh body-rows)
+        :width '(ch 28) :height (list 'lh (+ body-rows 2))
         :title (etaf-video-player--title spec)
         :source (etaf-video-player--source-label spec)
         :facts facts :playback playback :canvas canvas-facts
@@ -766,6 +766,7 @@ and the play/pause icon repaint without a View rebuild."
             :width stage-width :height '(lh 1)
             :overflow 'hidden :text-align 'center
             :color (etaf-video-player-color :ink)
+            :background-color (etaf-video-player-color :stage)
          (text :ref etaf-video-player--subtitle-ref
                :id (symbol-name etaf-video-player--subtitle-ref) ""))
        (etaf-video-player--view-transport
@@ -804,7 +805,14 @@ and the play/pause icon repaint without a View rebuild."
         :position 'absolute :left '(px 0) :top (list 'lh footer-top)
         :width (list 'px viewport-width) :height '(lh 1)
         :hints (if sidebar etaf-video-player--hint-line
-                 etaf-video-player--hint-line-compact))))))
+                 etaf-video-player--hint-line-compact))
+       ;; Under the footer, one more stripe of the same chrome color: the
+       ;; measured viewport can leave a row of slack at the window edge, and
+       ;; this keeps any remainder continuous with the footer instead of
+       ;; showing the frame background.  The root clips it.
+       (box :position 'absolute :left '(px 0) :top (list 'lh (1+ footer-top))
+            :width (list 'px viewport-width) :height '(lh 3)
+            :background-color (etaf-video-player-color :panel2))))))
 
 (defun etaf-video-player--view (player)
   "Return the mountable View of PLAYER."
@@ -888,27 +896,31 @@ Ebox paints whole character cells, so a window body that is not a whole
 number of cells keeps a sub-cell remainder at its right or bottom edge.
 Remapping the default face shows the application surface there instead of
 the frame's."
-  (face-remap-set-base 'default (list :background (etaf-video-player-color :surface))))
+  (face-remap-set-base 'default (list :background (etaf-video-player-color :panel2))))
 
 (defvar etaf-video-player--frame-background nil
   "Saved (FRAME . BACKGROUND) while a player paints the frame's edges.")
 
 (defun etaf-video-player--adopt-frame-background (frame)
-  "Paint FRAME's unpaintable edge cells with the player surface color.
+  "Paint FRAME's unpaintable edge cells with the player's edge color.
 Emacs reserves the last character cell of every line and any partial bottom
 line, and buffer text cannot paint those pixels; they show the frame
-background.  A player that owns the frame therefore adopts the surface
-color while it is open.  Save the previous value once and restore it in
-`etaf-video-player--restore-frame-background'."
+background.  A player that owns the frame therefore adopts the transportation
+color while it is open.  Both the frame parameter (the window-system
+background) and the default face are set, because face assertions alone do
+not reach the frame's edge pixels.  Save the previous value once and restore
+it in `etaf-video-player--restore-frame-background'."
   (when (and (frame-live-p frame) (display-graphic-p frame))
     (unless etaf-video-player--frame-background
       (setq etaf-video-player--frame-background
-            (cons frame (ignore-errors (face-attribute 'default :background frame)))))
+            (cons frame (ignore-errors (frame-parameter frame 'background)))))
     ;; Painting the frame edge is best-effort: a frame that cannot carry
     ;; the attribute simply keeps its own background.
     (ignore-errors
+      (set-frame-parameter frame 'background (etaf-video-player-color :panel2)))
+    (ignore-errors
       (set-face-attribute 'default frame
-                          :background (etaf-video-player-color :surface)))
+                          :background (etaf-video-player-color :panel2)))
     t))
 
 (defun etaf-video-player--restore-frame-background ()
@@ -916,6 +928,8 @@ color while it is open.  Save the previous value once and restore it in
   (when-let* ((saved etaf-video-player--frame-background))
     (setq etaf-video-player--frame-background nil)
     (when (and (frame-live-p (car saved)) (cdr saved))
+      (ignore-errors
+        (set-frame-parameter (car saved) 'background (cdr saved)))
       (ignore-errors
         (set-face-attribute 'default (car saved) :background (cdr saved))))
     t))

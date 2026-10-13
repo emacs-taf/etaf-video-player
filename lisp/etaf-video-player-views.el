@@ -55,21 +55,18 @@ The playlist threshold (700) shows its column from roughly 100 columns.")
 
 (etaf-define-component etaf-video-player--view-header
     (&key title status-ref status on-toggle-theme on-help position left top width height)
-  "Render the brand, the current title and the retained status in one row."
+  "Render the title, the retained status and the header buttons in one row."
   :view
   (flex :position (or position 'static) :left (or left '(px 0)) :top (or top '(lh 0))
         :width (or width 'stretch) :height (or height '(lh 1)) :align-items 'center
-        :gap '((lh 0) (ch 1)) :padding '((lh 0) (ch 2))
+        :gap '((lh 0) (ch 2)) :padding '((lh 0) (ch 2))
         :background-color (etaf-video-player-color :panel2)
         :border-bottom (etaf-video-player--border (etaf-video-player-color :line))
     (etaf-ui-icon :name 'video :set 'svg :size 0.9 :min-width 2
                   :color (etaf-video-player-color :accent))
-    (box :height '(lh 1) :font-weight 'bold :color (etaf-video-player-color :ink)
-      (text "视频播放器"))
-    (box :height '(lh 1) :color (etaf-video-player-color :dim) (text "·"))
     (box :flex-grow 1 :flex-basis '(ch 0) :min-width '(ch 0)
          :height '(lh 1) :overflow 'hidden
-      (text :color (etaf-video-player-color :muted)
+      (text :color (etaf-video-player-color :ink)
         (expr (or title "未选择来源"))))
     (box :height '(lh 1) :font-size 16 :color (etaf-video-player-color :muted)
       (text :ref status-ref :id (symbol-name status-ref)
