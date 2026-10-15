@@ -12,6 +12,11 @@
   "support": [],
   "cases": [
     {
+      "name": "etaf-video-player-tests-help-stays-in-player",
+      "file": "tests/etaf-video-player-tests.el",
+      "purpose": "Both help entries open the shared searchable modal in the existing player, block playback keys and preserve playback through layered Escape."
+    },
+    {
       "name": "etaf-video-player-tests-image-frames-publish-image-cells",
       "file": "tests/etaf-video-player-tests.el",
       "purpose": "A graphical frame makes the native Component publish one scaled JPEG cropped into one display slice per canvas row, so the canvas occupies exactly its rows and the controls below it stay visible."

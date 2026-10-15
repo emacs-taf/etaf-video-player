@@ -104,70 +104,39 @@ logical-pixel frames.  The change applies to the next session restart.")
 
 (defvar etaf-video-player-mode-map
   (let ((map (make-sparse-keymap)))
-    (define-key map (kbd "SPC") #'etaf-video-player-toggle-playback)
-    (define-key map (kbd "n") #'etaf-video-player-step)
-    (define-key map (kbd "f") #'etaf-video-player--forward-command)
-    (define-key map (kbd "b") #'etaf-video-player--backward-command)
-    (define-key map (kbd "+") #'etaf-video-player--speed-up-command)
-    (define-key map (kbd "-") #'etaf-video-player--speed-down-command)
-    (define-key map (kbd "[") #'etaf-video-player--volume-down-command)
-    (define-key map (kbd "]") #'etaf-video-player--volume-up-command)
-    (define-key map (kbd "a") #'etaf-video-player--toggle-audio-command)
-    (define-key map (kbd "1") #'etaf-video-player--preset-command)
-    (define-key map (kbd "2") #'etaf-video-player--preset-command)
-    (define-key map (kbd "3") #'etaf-video-player--preset-command)
-    (define-key map (kbd "4") #'etaf-video-player--preset-command)
-    (define-key map (kbd ">") #'etaf-video-player-next)
-    (define-key map (kbd "<") #'etaf-video-player-previous)
-    (define-key map (kbd "L") #'etaf-video-player-toggle-loop)
-    (define-key map (kbd "s") #'etaf-video-player-toggle-shuffle)
-    (define-key map (kbd "F") #'etaf-video-player-fit)
-    (define-key map (kbd "T") #'etaf-video-player--toggle-theme)
-    (define-key map (kbd "o") #'etaf-video-player-open-file)
-    (define-key map (kbd "u") #'etaf-video-player-open-url)
-    (define-key map (kbd "c") #'etaf-video-player--subtitle-toggle-command)
-    (define-key map (kbd "S") #'etaf-video-player-save-screenshot)
-    (define-key map (kbd "d") #'etaf-video-player-demo)
-    (define-key map (kbd "C-c h") #'etaf-video-player--help-command)
-    (define-key map (kbd "q") #'etaf-video-player-close)
+    (dolist (binding '(("SPC" etaf-video-player-toggle-playback "播放／暂停")
+                       ("n" etaf-video-player-step "逐帧前进")
+                       ("f" etaf-video-player--forward-command "快进 5 秒")
+                       ("b" etaf-video-player--backward-command "后退 5 秒")
+                       ("+" etaf-video-player--speed-up-command "提高播放速度")
+                       ("-" etaf-video-player--speed-down-command "降低播放速度")
+                       ("[" etaf-video-player--volume-down-command "降低音量")
+                       ("]" etaf-video-player--volume-up-command "提高音量")
+                       ("a" etaf-video-player--toggle-audio-command "开启／关闭声音")
+                       ("1" etaf-video-player--preset-command "画布 64 列")
+                       ("2" etaf-video-player--preset-command "画布 96 列")
+                       ("3" etaf-video-player--preset-command "画布 128 列")
+                       ("4" etaf-video-player--preset-command "画布 176 列")
+                       (">" etaf-video-player-next "下一个视频")
+                       ("<" etaf-video-player-previous "上一个视频")
+                       ("L" etaf-video-player-toggle-loop "切换循环方式")
+                       ("s" etaf-video-player-toggle-shuffle "切换随机播放")
+                       ("F" etaf-video-player-fit "适配窗口")
+                       ("T" etaf-video-player--toggle-theme "切换深浅主题")
+                       ("o" etaf-video-player-open-file "打开视频文件")
+                       ("u" etaf-video-player-open-url "打开视频网址")
+                       ("c" etaf-video-player--subtitle-toggle-command "加载／显示字幕")
+                       ("S" etaf-video-player-save-screenshot "保存当前画面")
+                       ("d" etaf-video-player-demo "播放演示")
+                       ("C-c h" etaf-help "查看快捷键")
+                       ("q" etaf-video-player-close "关闭播放器")))
+      (define-key map (kbd (car binding))
+                  (list 'menu-item (nth 2 binding) (nth 1 binding))))
     map)
   "Keymap of a buffer opened by `etaf-video-player-open'.")
 
 (defvar etaf-video-player--command-maps
-  (list
-   (cons 'etaf-video-player--player
-         (let ((map (make-sparse-keymap)))
-           ;; The renderer's minor-mode map owns these keys and wins over a
-           ;; major-mode map; an `emulation-mode-map-alists' entry wins over
-           ;; every minor mode, so the application replaces them here.
-           (set-keymap-parent map etaf-video-player-mode-map)
-           (define-key map (kbd "SPC") #'etaf-video-player-toggle-playback)
-           (define-key map (kbd "n") #'etaf-video-player-step)
-           (define-key map (kbd "f") #'etaf-video-player--forward-command)
-           (define-key map (kbd "b") #'etaf-video-player--backward-command)
-           (define-key map (kbd "+") #'etaf-video-player--speed-up-command)
-           (define-key map (kbd "-") #'etaf-video-player--speed-down-command)
-           (define-key map (kbd "[") #'etaf-video-player--volume-down-command)
-           (define-key map (kbd "]") #'etaf-video-player--volume-up-command)
-           (define-key map (kbd "a") #'etaf-video-player--toggle-audio-command)
-           (define-key map (kbd "1") #'etaf-video-player--preset-command)
-           (define-key map (kbd "2") #'etaf-video-player--preset-command)
-           (define-key map (kbd "3") #'etaf-video-player--preset-command)
-           (define-key map (kbd "4") #'etaf-video-player--preset-command)
-           (define-key map (kbd ">") #'etaf-video-player-next)
-           (define-key map (kbd "<") #'etaf-video-player-previous)
-           (define-key map (kbd "L") #'etaf-video-player-toggle-loop)
-           (define-key map (kbd "s") #'etaf-video-player-toggle-shuffle)
-           (define-key map (kbd "F") #'etaf-video-player-fit)
-           (define-key map (kbd "T") #'etaf-video-player--toggle-theme)
-           (define-key map (kbd "o") #'etaf-video-player-open-file)
-           (define-key map (kbd "u") #'etaf-video-player-open-url)
-           (define-key map (kbd "c") #'etaf-video-player--subtitle-toggle-command)
-           (define-key map (kbd "S") #'etaf-video-player-save-screenshot)
-           (define-key map (kbd "d") #'etaf-video-player-demo)
-           (define-key map (kbd "C-c h") #'etaf-video-player--help-command)
-           (define-key map (kbd "q") #'etaf-video-player-close)
-           map)))
+  (list (cons 'etaf-video-player--player etaf-video-player-mode-map))
   "Application bindings that must beat the renderer's own minor-mode map.
 The alist's key is `etaf-video-player--player', the buffer-local variable
 every application buffer owns, so the entry is active exactly there.")
@@ -709,6 +678,8 @@ and the play/pause icon repaint without a View rebuild."
     (etaf-view
      (box :position 'relative
            :on-direction #'etaf-video-player--direction
+           :aria-label "视频播放器"
+           :help "本地视频会记住播放进度；同名字幕自动加载。终端使用字符画布显示。"
            :width (list 'px viewport-width)
            :height (list 'lh viewport-rows)
            :background-color (etaf-video-player-color :bg)
@@ -1481,13 +1452,6 @@ track beside the video, or asks for a subtitle file when none exists."
      columns
      (etaf-video-player--rows-for-columns
       (etaf-video-player--aspect (etaf-video-player--player-spec player)) columns))))
-
-(defun etaf-video-player--help-command ()
-  "Show the video player key bindings."
-  (interactive)
-  (message (concat "视频播放器：SPC 播放/暂停 · n 单步 · f/b ±5s · <> 上/下条"
-                   " · +/- 速度 · [ ] 音量 · a 声音 · 1-4 画布 · F 适配"
-                   " · T 明暗主题 · o 打开 · u 网址 · d 演示 · q 关闭")))
 
 (provide 'etaf-video-player-app)
 ;;; etaf-video-player-app.el ends here

@@ -821,5 +821,47 @@ not cover the decode-to-image path."
       (etaf-video-player-tests--cleanup)
       (ignore-errors (delete-directory directory t)))))
 
+(ert-deftest etaf-video-player-tests-help-stays-in-player ()
+  "Both help keys preserve the player and guard playback while searching."
+  (save-window-excursion
+    (let ((log (etaf-video-player-tests--log)))
+      (unwind-protect
+          (etaf-video-player-tests--with-fixture
+              log '("FAKE_FFMPEG_FRAMES=400" "FAKE_FFMPEG_INTERVAL=0.1")
+            (let* ((buffer (etaf-video-player-open
+                            (list :file etaf-video-player-tests--input :columns 16 :rows 4 :audio nil)))
+                   (runtime (etaf-runtime-for-buffer buffer))
+                   (windows (window-list)))
+              (with-current-buffer buffer
+                (etaf-video-player-toggle-playback)
+                (dolist (key '("?" "C-c h"))
+                  (execute-kbd-macro (kbd key))
+                  (let* ((data (etaf-help-data runtime))
+                         (entries (apply #'append (mapcar (lambda (group) (plist-get group :entries))
+                                                          (plist-get data :groups))))
+                         (play (cl-find "SPC" entries :key (lambda (entry) (plist-get entry :key))
+                                        :test #'equal))
+                         (same-runtime (eq runtime (etaf-runtime-for-buffer buffer))))
+                    (should same-runtime)
+                    (should (equal windows (window-list)))
+                    (should (eq (window-buffer) buffer))
+                    (should (equal (plist-get play :label) "播放／暂停")))
+                  (execute-kbd-macro (kbd "SPC"))
+                  (execute-kbd-macro (kbd "/"))
+                  (execute-kbd-macro "?")
+                  (execute-kbd-macro (kbd "<escape>"))
+                  (let ((editing (etaf-text-input-active-p runtime)))
+                    (should-not editing))
+                  (should (string-match-p "快捷键 · 只读"
+                                          (buffer-substring-no-properties (point-min) (point-max))))
+                  (execute-kbd-macro (kbd "<escape>"))
+                  (let ((playing (plist-get (etaf-video-player-state) :playing))
+                        (text (buffer-substring-no-properties (point-min) (point-max))))
+                    (should-not playing)
+                    (should (string-match-p "SPC" text))
+                    (should-not (string-match-p "快捷键 · 只读" text)))))))
+        (etaf-video-player-tests--cleanup)
+        (delete-file log)))))
+
 (provide 'etaf-video-player-tests)
 ;;; etaf-video-player-tests.el ends here

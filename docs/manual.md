@@ -164,7 +164,13 @@ that cannot be read signals `etaf-video-player-subtitle-error`.
 | `S` | save the current frame as a PNG |
 | `L`, `s` | loop off/list/one, shuffle |
 | `T` | switch dark/light appearance |
-| `C-c h`, `q` | help / close |
+| `?`, `C-c h` | searchable help in the player |
+| `q` | close the player |
+
+The header's help button opens the same read-only modal, using the current
+appearance and effective key bindings. `/` searches; Escape leaves search
+editing before closing help. Clicking outside also closes it and restores focus
+without changing playback or splitting the window.
 
 `F` and `etaf-video-player-fit` reserve six rows for the header, transport
 and footer.  From about 100 character columns the playlist occupies 30

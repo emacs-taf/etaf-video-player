@@ -118,7 +118,12 @@ variables documented in ETAF's manual.
 | `S` | save the current frame as a PNG |
 | `L` / `s` | cycle loop mode / toggle shuffle |
 | `T` | switch dark/light appearance |
-| `C-c h` / `q` | help / close |
+| `?` / `C-c h` | searchable help inside the player |
+| `q` | close the player |
+
+The header's help button opens the same read-only, themed modal. `/` searches
+the effective bindings; Escape leaves search editing before closing help.
+Clicking the dimmed background closes it and restores the player focus.
 
 ## Checks
 

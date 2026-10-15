@@ -42,6 +42,11 @@
 
 ### Changed
 
+- `?`, `C-c h` and the header help button share a searchable, themed modal
+  inside the player. Concise labels follow the effective bindings; Escape
+  exits one layer at a time, and clicking outside closes help without
+  changing playback or splitting the window.
+
 - The three-pane shell was rebuilt around a four-step depth palette: the
   page, panes, header and transport each paint one step, the details pane
   groups facts into 视频信息/播放设置/画布 sections with aligned values, and
