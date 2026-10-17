@@ -2,8 +2,8 @@
 
 ;; SPDX-License-Identifier: GPL-3.0-or-later
 ;; Author: ETAF contributors
-;; Version: 0.1.0
-;; Package-Requires: ((emacs "29.1") (etaf "0.2.1") (etaf-ui "0.1.0"))
+;; Version: 0.1.1
+;; Package-Requires: ((emacs "29.1") (etaf "0.2.1") (etaf-ui "0.1.0") (etaf-db "0.1.0"))
 ;; Keywords: multimedia, ui
 ;; URL: https://github.com/emacs-taf/etaf-video-player
 
@@ -41,6 +41,11 @@
 ;; implementations and precise docstrings remain beside their definitions,
 ;; and the manual contains workflows.
 ;;
+;; Function: etaf-video-player-doctor ()
+;; Return capability facts for playback.  The shape matches
+;; `etaf-install-doctor': :required and :optional lists of
+;; (LABEL AVAILABLE REMEDY).  ffmpeg decodes, ffprobe reads metadata and
+;; SQLite stores the playback history.
 ;; Function: etaf-video-player-open (&optional source)
 ;;;###autoload (autoload 'etaf-video-player-open "etaf-video-player" nil t)
 ;; Open the player and return its buffer.
@@ -264,6 +269,21 @@
                                       buffer-file-name)))))
 
 (require 'etaf-video-player-app)
+
+(defun etaf-video-player-doctor ()
+  "Return capability facts for playing video in ETAF.
+The shape matches `etaf-install-doctor': :required and :optional lists of
+(LABEL AVAILABLE REMEDY).  Nothing is installed or changed."
+  (list :required
+        (list (list "ffmpeg" (and (executable-find "ffmpeg") t)
+                    "Install ffmpeg with your system package manager, for example brew install ffmpeg or apt install ffmpeg.")
+              (list "ffprobe" (and (executable-find "ffprobe") t)
+                    "ffprobe ships with ffmpeg; install ffmpeg and reopen the player.")
+              (list "SQLite built into Emacs"
+                    (and (fboundp 'sqlite-available-p) (sqlite-available-p))
+                    "Use an Emacs build with SQLite support for the playback history."))
+        :optional nil))
+
 
 (provide 'etaf-video-player)
 ;;; etaf-video-player.el ends here

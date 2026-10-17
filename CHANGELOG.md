@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+### Added
+
+- `etaf-video-player-doctor` reports ffmpeg, ffprobe and SQLite availability in the
+  same shape as `etaf-install-doctor`, so the installer can show what is missing
+  before the player opens.
+
+### Fixed
+
+- Declare the `etaf-db` dependency. Playback history requires it, but the header
+  omitted it, so `package.el` could install the player without it.
+
+## Unreleased
+
 ### Fixed
 
 - The open prompt reads file names the way `find-file` does: a pasted
