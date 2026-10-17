@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+### Fixed
+
+- A source typed as `~/Videos/clip.mp4` or a name relative to the calling
+  buffer plays the file instead of falling back to default metadata; the
+  player resolves the name before the decoder opens it.
+
 ### Added
 
 - Video playback in an ETAF buffer as sharp image frames with sound, built on

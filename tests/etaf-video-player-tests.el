@@ -310,6 +310,33 @@ decoded format follow the canvas that is actually available."
       (ignore-errors (delete-file log))
       (etaf-video-player-tests--cleanup))))
 
+(ert-deftest etaf-video-player-tests-resolves-relative-file-names ()
+  "A relative source plays from the directory it was named in.
+`read-file-name' returns the name unexpanded, so the player must resolve it
+before probing; otherwise the decoder looks for the file under another
+buffer's `default-directory'."
+  (etaf-video-player-tests--cleanup)
+  (let ((log (etaf-video-player-tests--log))
+        (absolute etaf-video-player-tests--input)
+        (directory (file-name-directory etaf-video-player-tests--input)))
+    (unwind-protect
+        (etaf-video-player-tests--with-fixture
+         log
+         (list "FAKE_FFMPEG_FRAMES=200" "FAKE_FFMPEG_INTERVAL=0.02"
+               "FAKE_FFPROBE_DURATION=4.0")
+         (let ((default-directory directory))
+           (etaf-video-player-open
+            (list :file (file-relative-name absolute directory)
+                  :columns 16 :rows 4)))
+         (should (etaf-video-player-tests--wait
+                  (lambda () (>= (plist-get (etaf-video-player-tests--state) :presented) 1))))
+         (should (equal absolute (plist-get (etaf-video-player-tests--state) :source)))
+         (let ((arguments (car (last (etaf-video-player-tests--runs log)))))
+           (should (member absolute arguments)))
+         (etaf-video-player-close))
+      (ignore-errors (delete-file log))
+      (etaf-video-player-tests--cleanup))))
+
 (ert-deftest etaf-video-player-tests-audio-sidecar-follows-playback ()
   "Audio playback runs one ffplay sidecar while playing and releases it.
 A source that reports an audio stream starts the sidecar with the documented

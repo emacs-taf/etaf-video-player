@@ -32,6 +32,11 @@
       "purpose": "Without a graphical frame the requested image mode renders a density-ramp canvas while the state reports both modes."
     },
     {
+      "name": "etaf-video-player-tests-resolves-relative-file-names",
+      "file": "tests/etaf-video-player-tests.el",
+      "purpose": "A source named relative to the caller's directory reaches the decoder as the absolute file name and plays."
+    },
+    {
       "name": "etaf-video-player-tests-audio-sidecar-follows-playback",
       "file": "tests/etaf-video-player-tests.el",
       "purpose": "An audio source starts one ffplay sidecar with the documented arguments while playing, releases it on pause, and stays silent while sound is off."
