@@ -17,6 +17,13 @@
 
 (require 'cl-lib)
 (require 'etaf-db nil t)
+;; Optional at runtime, but declaring the interface keeps compilation
+;; warning-free when etaf-db is not installed.
+(declare-function etaf-sqlite-table "etaf-db" (id columns &optional primary-key))
+(declare-function etaf-sqlite-column "etaf-db" (id sql-name &rest options))
+(declare-function etaf-sqlite-database "etaf-db" (file table))
+(declare-function etaf-sqlite-source "etaf-db" (database))
+(declare-function etaf-sqlite-initialize "etaf-db" (database))
 
 (defcustom etaf-video-player-history-file nil
   "Database file holding saved playback positions.
