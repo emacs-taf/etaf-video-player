@@ -66,6 +66,10 @@
 
 ### Changed
 
+- `M-x etaf-video-player-open` opens the player on the built-in demo instead
+  of asking for a video file; `etaf-video-player-open-file` (also `o`) and
+  `etaf-video-player-open-url` (`u`) are the commands that read a source.
+
 - `?`, `C-c h` and the header help button share a searchable, themed modal
   inside the player. Concise labels follow the effective bindings; Escape
   exits one layer at a time, and clicking outside closes help without

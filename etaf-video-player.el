@@ -60,6 +60,9 @@
 ;; canvas is fitted to the selected window unless both size hints are given.
 ;; An existing player is closed first; unreadable files, non-HTTP(S) URLs and
 ;; unsupported sources signal `user-error' before any process starts.
+;; Called interactively it plays the built-in demo and reads nothing;
+;; `etaf-video-player-open-file' and `etaf-video-player-open-url' are the
+;; commands that read a file name or a URL.
 ;;
 ;; Function: etaf-video-player-open-file (file)
 ;;;###autoload (autoload 'etaf-video-player-open-file "etaf-video-player" nil t)

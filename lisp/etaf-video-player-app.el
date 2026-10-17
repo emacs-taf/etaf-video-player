@@ -942,9 +942,11 @@ accepted by `etaf-video-source-info'.  The hints `:columns' and `:rows'
 elsewhere the native Component falls back to a density-ramp canvas.  The
 canvas is fitted to the selected window unless both size hints are given.  An
 existing player is closed first; unreadable files, non-HTTP(S) URLs and
-unsupported sources signal `user-error' before any process starts."
-  (interactive (list (let ((name (read-file-name "Video file (empty for demo): " nil nil nil)))
-                       (if (string-empty-p name) nil name))))
+unsupported sources signal `user-error' before any process starts.
+Called interactively it plays the built-in demo without reading a source;
+`etaf-video-player-open-file' and `etaf-video-player-open-url' are the
+commands that read a file name or a URL."
+  (interactive)
   (let* ((hints (and (consp source) source))
          (speed (or (plist-get hints :speed) 1))
          (audio (if (plist-member hints :audio)

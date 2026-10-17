@@ -72,6 +72,11 @@
       "purpose": "The documented keys drive the player through the command loop instead of the renderer's own keymap, and closing leaves no buffer."
     },
     {
+      "name": "etaf-video-player-tests-open-interactively-shows-the-demo",
+      "file": "tests/etaf-video-player-tests.el",
+      "purpose": "The generic open command reads nothing from the minibuffer and plays the built-in demo, while open-file remains the command that prompts for a name."
+    },
+    {
       "name": "etaf-video-player-tests-plays-demo-with-real-ffmpeg",
       "file": "tests/etaf-video-player-tests.el",
       "purpose": "The built-in demo plays through a real ffmpeg when one is installed, gated so other machines still run the fixture scenarios."

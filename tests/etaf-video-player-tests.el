@@ -562,6 +562,33 @@ no buffer behind."
       (ignore-errors (delete-file log))
       (etaf-video-player-tests--cleanup))))
 
+(ert-deftest etaf-video-player-tests-open-interactively-shows-the-demo ()
+  "The generic entry opens the player without asking for a video file.
+`M-x etaf-video-player-open' plays the built-in demo, so it reads nothing
+from the minibuffer; `etaf-video-player-open-file' is the command that
+prompts for a name."
+  (etaf-video-player-tests--cleanup)
+  (let ((log (etaf-video-player-tests--log))
+        prompted)
+    (unwind-protect
+        (etaf-video-player-tests--with-fixture
+         log (list "FAKE_FFMPEG_FRAMES=100" "FAKE_FFMPEG_INTERVAL=0.02")
+         (cl-letf (((symbol-function 'read-file-name)
+                    (lambda (&rest _) (setq prompted t) ""))
+                   ((symbol-function 'read-string)
+                    (lambda (&rest _) (setq prompted t) ""))
+                   ((symbol-function 'read-from-minibuffer)
+                    (lambda (&rest _) (setq prompted t) "")))
+           (call-interactively #'etaf-video-player-open))
+         (should-not prompted)
+         (should (eq 'demo (plist-get (etaf-video-player-tests--state) :source)))
+         (should (equal "内建演示"
+                        (plist-get (etaf-video-player-tests--state) :title)))
+         (should (plist-get (etaf-video-player-tests--state) :playing))
+         (etaf-video-player-close))
+      (ignore-errors (delete-file log))
+      (etaf-video-player-tests--cleanup))))
+
 (ert-deftest etaf-video-player-tests-plays-demo-with-real-ffmpeg ()
   "The built-in demo plays through a real ffmpeg when one is installed.
 This scenario is skipped on machines without ffmpeg; the fixture scenarios

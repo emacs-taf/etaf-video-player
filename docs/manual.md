@@ -2,13 +2,16 @@
 
 ## Playing a video
 
+`M-x etaf-video-player-open` opens the player without asking for a source:
+it plays the built-in demo, and `o` or `u` switches to a file or a stream
+from inside the player.  To name the source up front,
 `etaf-video-player-open-file` plays a local file with sound;
 `etaf-video-player-open-url` (`u`) plays an HTTP(S) URL as a stream: ffmpeg
 decodes it directly, so nothing is downloaded first.  Seeking needs the server
 to support range requests, and a dropped connection is retried for up to five
 seconds.  ffmpeg's HTTP reader reads the lowercase `http_proxy` environment
 variable when a proxy is needed.  `etaf-video-player-demo` plays a generated
-30 second test pattern and needs no file.  All three create one buffer named
+30 second test pattern and needs no file.  All of them create one buffer named
 `*Video Player*` and reuse it: opening another source closes the previous
 player first.  `etaf-video-player-close` (also `q`) cancels the status timer,
 destroys the native session and its audio sidecar, and unmounts the ETAF
@@ -182,8 +185,8 @@ size, so a resized frame keeps a canvas that fits.
 
 ## Scripting
 
-`etaf-video-player-open` accepts a file name or a plist, so a session can be
-built without prompts:
+`etaf-video-player-open` accepts a file name or a plist, so a whole session
+can be built from Lisp:
 
 ```elisp
 (etaf-video-player-open '(:file "clip.mp4" :columns 100 :rows 28 :volume 60))
