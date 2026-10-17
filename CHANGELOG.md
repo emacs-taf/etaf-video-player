@@ -4,6 +4,11 @@
 
 ### Fixed
 
+- The open prompt reads file names the way `find-file` does: a pasted
+  absolute or `~` path is accepted instead of being refused with
+  "(match required)" because it does not match the current directory's
+  completions.
+
 - A source typed as `~/Videos/clip.mp4` or a name relative to the calling
   buffer plays the file instead of falling back to default metadata; the
   player resolves the name before the decoder opens it.

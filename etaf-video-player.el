@@ -59,6 +59,9 @@
 ;; Function: etaf-video-player-open-file (file)
 ;;;###autoload (autoload 'etaf-video-player-open-file "etaf-video-player" nil t)
 ;; Play the local video FILE with sound.
+;; The prompt reads FILE the way `find-file' does, so a pasted absolute or
+;; `~' name is accepted and a relative one resolves against the calling
+;; buffer's `default-directory'.
 ;;
 ;; Function: etaf-video-player-open-url (url)
 ;;;###autoload (autoload 'etaf-video-player-open-url "etaf-video-player" nil t)

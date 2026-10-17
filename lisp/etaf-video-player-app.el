@@ -1021,8 +1021,13 @@ unsupported sources signal `user-error' before any process starts."
 
 ;;;###autoload
 (defun etaf-video-player-open-file (file)
-  "Play the local video FILE in the video player."
-  (interactive "fVideo file: ")
+  "Play the local video FILE in the video player.
+The prompt reads the name the way `find-file' does, so a pasted absolute or
+`~' path is accepted.  A relative name resolves against the calling
+buffer's `default-directory'."
+  (interactive
+   (list (read-file-name "Video file: " nil default-directory
+                         (confirm-nonexistent-file-or-buffer))))
   (etaf-video-player-open (list :file file)))
 
 ;;;###autoload
@@ -1173,7 +1178,8 @@ whether playback wraps around or stops."
 (defun etaf-video-player-enqueue (source)
   "Append SOURCE to the current player's playlist.
 SOURCE is anything `etaf-video-source-info' accepts."
-  (interactive (list (read-file-name "Add video: " nil nil t)))
+  (interactive (list (read-file-name "Add video: " nil default-directory
+                                     (confirm-nonexistent-file-or-buffer))))
   (let* ((player (etaf-video-player--current))
          (spec (etaf-video-source-info source))
          (queue (append (etaf-video-player--player-queue player) (list spec))))
