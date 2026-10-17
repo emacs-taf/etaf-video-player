@@ -16,7 +16,7 @@
 ;;; Code:
 
 (require 'cl-lib)
-(require 'etaf-db)
+(require 'etaf-db nil t)
 
 (defcustom etaf-video-player-history-file nil
   "Database file holding saved playback positions.
@@ -27,14 +27,16 @@ opened disables history instead of signaling."
   :group 'etaf-video-player)
 
 (defconst etaf-video-player-history--table
-  (etaf-sqlite-table
+  (when (fboundp 'etaf-sqlite-table)
+    (etaf-sqlite-table
    'playback
    (list (etaf-sqlite-column :path "path" :type 'text :primary t)
          (etaf-sqlite-column :position "position" :type 'real)
          (etaf-sqlite-column :duration "duration" :type 'real)
          (etaf-sqlite-column :updated "updated" :type 'real))
-   :path)
-  "The playback table: one row per watched file, keyed by its path.")
+     :path))
+  "The playback table: one row per watched file, keyed by its path.
+Nil when this Emacs lacks `etaf-db' or SQLite support; playback still works.")
 
 (defvar etaf-video-player-history--handle nil
   "Cached history handle as a plist, or nil when unavailable.
@@ -47,6 +49,8 @@ connection, so the handle owns no database resource.")
 Creating the file, the table and the handle all fail open."
   (condition-case nil
       (let ((file (expand-file-name file)))
+        (unless etaf-video-player-history--table
+          (error "Playback history needs etaf-db with SQLite"))
         (make-directory (file-name-directory file) t)
         (let* ((database (etaf-sqlite-database file etaf-video-player-history--table))
                (source (etaf-sqlite-source database)))

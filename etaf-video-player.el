@@ -2,8 +2,8 @@
 
 ;; SPDX-License-Identifier: GPL-3.0-or-later
 ;; Author: ETAF contributors
-;; Version: 0.1.1
-;; Package-Requires: ((emacs "29.1") (etaf "0.2.1") (etaf-ui "0.1.0") (etaf-db "0.1.0"))
+;; Version: 0.1.2
+;; Package-Requires: ((emacs "29.1") (etaf "0.2.1") (etaf-ui "0.1.0"))
 ;; Keywords: multimedia, ui
 ;; URL: https://github.com/emacs-taf/etaf-video-player
 
@@ -279,10 +279,12 @@ The shape matches `etaf-install-doctor': :required and :optional lists of
                     "Install ffmpeg with your system package manager, for example brew install ffmpeg or apt install ffmpeg.")
               (list "ffprobe" (and (executable-find "ffprobe") t)
                     "ffprobe ships with ffmpeg; install ffmpeg and reopen the player.")
-              (list "SQLite built into Emacs"
-                    (and (fboundp 'sqlite-available-p) (sqlite-available-p))
-                    "Use an Emacs build with SQLite support for the playback history."))
-        :optional nil))
+              )
+        :optional
+        (list (list "Playback history (etaf-db with SQLite)"
+                    (and (fboundp 'etaf-sqlite-database)
+                         (fboundp 'sqlite-available-p) (sqlite-available-p))
+                    "Optional: install etaf-db and use an Emacs build with SQLite to resume playback."))))
 
 
 (provide 'etaf-video-player)
