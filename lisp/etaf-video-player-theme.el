@@ -27,8 +27,8 @@
 (defconst etaf-video-player--palettes
   '((dark
      ;; depth: page < card < raised < track
-     :bg "#0A0D12" :surface "#141820" :panel2 "#1B202B" :panel3 "#232A38"
-     :hover "#1D232F" :line "#2A303D"
+     :bg "#191a1c" :surface "#202225" :panel2 "#25272b" :panel3 "#2b2e33"
+     :hover "#2a2d31" :line "#303338"
      :ink "#E9EDF4" :muted "#9AA4B4" :dim "#6B7484"
      :accent "#5B8DEF" :accent-soft "#18243C"
      :stage "#000000" :playing "#5B8DEF"
