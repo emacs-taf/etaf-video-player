@@ -24,17 +24,19 @@
     (execute-kbd-macro (kbd "RET"))))
 
 (defun etaf-video-player-gui--range (ref ratio phase)
-  "Dispatch a pointer gesture to REF at RATIO across its live track."
+  "Dispatch a pointer gesture to REF at RATIO across its live track.
+The track's committed width comes from `etaf-host-ref-size': a graphic
+track is one slice of a viewport-wide rule image, so the glyph's own
+object width is the whole rule rather than the track."
   (let* ((buffer (get-buffer "*Video Player*"))
          (runtime (etaf-runtime-for-buffer buffer))
          (window (get-buffer-window buffer t))
          (bounds (etaf-host-ref-bounds runtime ref))
-         (first (and bounds (posn-at-point (car bounds) window)))
-         (last (and bounds (posn-at-point (1- (cdr bounds)) window))))
-    (unless (and first last) (error "Range %s is not visible" ref))
+         (size (etaf-host-ref-size runtime ref))
+         (first (and bounds (posn-at-point (car bounds) window))))
+    (unless (and first size) (error "Range %s is not visible" ref))
     (let* ((left (car (posn-x-y first)))
-           (right (+ (car (posn-x-y last)) (car (posn-object-width-height last))))
-           (x (+ left (* ratio (- right left))))
+           (x (+ left (* ratio (car size))))
            (y (cdr (posn-x-y first))))
       (etaf-dispatch-event runtime ref (if phase 'drag 'press)
                           (list :phase phase :window window :buffer buffer
