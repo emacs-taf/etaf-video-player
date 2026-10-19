@@ -208,7 +208,9 @@ The playlist threshold (700) shows its column from roughly 100 columns.")
       (text :ref time-ref :id (symbol-name time-ref)
         (expr (etaf-video-player--view-value time))))
     (flex :flex-grow 1 :flex-basis '(ch 0) :min-width '(ch 0) :height '(lh 1)
-      (etaf-range :min 0 :max 100 :value progress :bar-height 45
+      ;; One-pixel rule: a native-style player reads the meter as a hairline
+      ;; inside a full-height hit row, not as a slider bar (same as etaf-ncm).
+      (etaf-range :min 0 :max 100 :value progress :bar-height 8
                   :fill-ref progress-fill-ref :ref 'etaf-video-player-progress
                   :label "播放进度，点击或拖动跳转"
                   :color (etaf-video-player-color :accent)
@@ -251,7 +253,7 @@ The playlist threshold (700) shows its column from roughly 100 columns.")
                          :on-color (etaf-video-player-color :muted)
                          :help-echo "声音开关 (a)" :on-press on-toggle-audio)
     (flex :width (if compact '(ch 8) '(ch 12)) :height '(lh 1)
-      (etaf-range :min 0 :max 100 :value volume :step 1 :bar-height 45
+      (etaf-range :min 0 :max 100 :value volume :step 1 :bar-height 8
                   :ref 'etaf-video-player-volume :fill-ref 'video-volume-fill
                   :label "音量，点击或拖动调节"
                   :color (etaf-video-player-color :accent)
