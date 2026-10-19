@@ -13,9 +13,10 @@ seconds.  ffmpeg's HTTP reader reads the lowercase `http_proxy` environment
 variable when a proxy is needed.  `etaf-video-player-demo` plays a generated
 30 second test pattern and needs no file.  All of them create one buffer named
 `*Video Player*` and reuse it: opening another source closes the previous
-player first.  `etaf-video-player-close` (also `q`) cancels the status timer,
-destroys the native session and its audio sidecar, and unmounts the ETAF
-Runtime.
+player first.  `etaf-video-player-close` (also `q`) saves the playback
+position of a local file, cancels the status timer, destroys the native
+session and its audio sidecar, and unmounts the ETAF Runtime.  Killing the
+buffer closes the player the same way.
 
 The player buffer hides its cursor, so no cursor frame flashes around the
 picture.
@@ -180,8 +181,9 @@ and footer.  From about 100 character columns the playlist occupies 30
 columns; from about 143 the details pane occupies another 28 (the thresholds
 compare the published viewport in logical pixels).  The remaining space
 determines the aspect-preserving canvas size. The same fitting runs
-automatically through `window-size-change-functions` when the window changes
-size, so a resized frame keeps a canvas that fits.
+automatically once a window resize settles and after text scaling, so a
+resized frame keeps a canvas that fits; a minibuffer prompt that borrows
+lines does not refit it.
 
 ## Scripting
 

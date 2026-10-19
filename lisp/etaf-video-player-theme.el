@@ -19,6 +19,7 @@
 ;;; Code:
 
 (require 'etaf)
+(require 'etaf-ui)
 
 (defgroup etaf-video-player nil
   "Video player built with ETAF and Ebox."
@@ -75,56 +76,36 @@ MODE defaults to `etaf-video-player-theme-mode'.  The application passes the
 result to `etaf-theme-provide' so shared etaf-ui Components use the same
 colors as the player's own Views."
   (let* ((dark (not (eq (or mode etaf-video-player-theme-mode) 'light)))
-         (bg (etaf-video-player-color :bg mode))
-         (surface (etaf-video-player-color :surface mode))
-         (panel2 (etaf-video-player-color :panel2 mode))
-         (panel3 (etaf-video-player-color :panel3 mode))
-         (ink (etaf-video-player-color :ink mode))
-         (line (etaf-video-player-color :line mode))
-         (muted (etaf-video-player-color :muted mode))
-         (dim (etaf-video-player-color :dim mode))
-         (accent (etaf-video-player-color :accent mode))
-         (accent-soft (etaf-video-player-color :accent-soft mode))
-         (ok (etaf-video-player-color :ok mode))
-         (ok-bg (if dark "#17301F" "#E3F3E8"))
-         (ok-border (if dark "#2E5C3F" "#A9D8BB"))
-         (danger (etaf-video-player-color :danger mode))
-         (danger-bg (etaf-video-player-color :danger-bg mode))
-         (danger-border (if dark "#7A2A2C" "#E8B4AE"))
-         (warn (etaf-video-player-color :warn mode))
-         (warn-bg (if dark "#33280F" "#FBF0DA"))
-         (warn-border (if dark "#6B5423" "#E0C48A"))
-         (info (etaf-video-player-color :info mode))
-         (info-bg (if dark "#14232F" "#E4F0FA"))
-         (info-border (if dark "#2C4E66" "#A8CBE6")))
-    (list
-     :ink ink :paper bg :panel surface :line line :muted muted
-     :accent accent :accent-soft accent-soft
-     :ui-fg ink :ui-bg bg :ui-border line :ui-muted-fg muted
-     :ui-disabled-fg dim :ui-disabled-bg panel3 :ui-disabled-border line
-     :ui-accent accent :ui-accent-fg "#FFFFFF" :ui-accent-soft-bg accent-soft
-     :ui-button-primary-fg "#FFFFFF" :ui-button-primary-bg accent
-     :ui-button-secondary-fg accent :ui-button-secondary-bg accent-soft
-     :ui-button-ghost-fg muted
-     :ui-success-fg ok :ui-success-bg ok-bg :ui-success-border ok-border
-     :ui-danger-fg danger :ui-danger-bg danger-bg :ui-danger-border danger-border
-     :ui-warning-fg warn :ui-warning-bg warn-bg :ui-warning-border warn-border
-     :ui-info-fg info :ui-info-bg info-bg :ui-info-border info-border
-     :ui-panel-fg ink :ui-panel-bg surface :ui-panel-border line
-     :ui-divider-bg line :ui-progress-track panel3
-     :ui-range-track panel3 :ui-range-fill accent
-     :ui-table-border line :ui-table-selected-fg accent
-     :ui-table-selected-bg accent-soft
-     :ui-shell-bg panel2 :ui-shell-fg ink :ui-shell-muted-fg muted
-     :ui-shell-item-fg muted :ui-shell-item-minimized-fg dim
-     :ui-window-bg bg :ui-window-fg ink :ui-window-border line
-     :ui-window-title-bg panel2 :ui-window-title-fg muted
-     :ui-window-title-active-fg ink
-     :ui-picker-item-bg surface :ui-picker-item-fg ink
-     :ui-picker-item-muted-fg muted
-     :ui-pagination-muted-fg muted
-     :ui-data-grid-error-fg danger
-     :ui-checkbox-enabled-fg ink :ui-checkbox-disabled-fg dim)))
+         (color (lambda (key) (etaf-video-player-color key mode)))
+         (panel2 (funcall color :panel2))
+         (panel3 (funcall color :panel3)))
+    ;; Shell chrome and window titles sit on the raised surface and disabled
+    ;; fills on the control track, above the catalog's pane default.
+    (append
+     (list :ui-shell-bg panel2 :ui-window-title-bg panel2 :ui-disabled-bg panel3)
+     (etaf-ui-theme-tokens
+      (list :bg (funcall color :bg)
+            :fg (funcall color :ink)
+            :panel (funcall color :surface)
+            :track panel3
+            :border (funcall color :line)
+            :muted (funcall color :muted)
+            :dim (funcall color :dim)
+            :accent (funcall color :accent)
+            :accent-fg "#FFFFFF"
+            :accent-soft (funcall color :accent-soft)
+            :success (funcall color :ok)
+            :success-bg (if dark "#17301F" "#E3F3E8")
+            :success-border (if dark "#2E5C3F" "#A9D8BB")
+            :danger (funcall color :danger)
+            :danger-bg (funcall color :danger-bg)
+            :danger-border (if dark "#7A2A2C" "#E8B4AE")
+            :warning (funcall color :warn)
+            :warning-bg (if dark "#33280F" "#FBF0DA")
+            :warning-border (if dark "#6B5423" "#E0C48A")
+            :info (funcall color :info)
+            :info-bg (if dark "#14232F" "#E4F0FA")
+            :info-border (if dark "#2C4E66" "#A8CBE6"))))))
 
 (provide 'etaf-video-player-theme)
 ;;; etaf-video-player-theme.el ends here

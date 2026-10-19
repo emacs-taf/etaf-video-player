@@ -2,8 +2,8 @@
 
 ;; SPDX-License-Identifier: GPL-3.0-or-later
 ;; Author: ETAF contributors
-;; Version: 0.1.4
-;; Package-Requires: ((emacs "29.1") (etaf "0.2.1") (etaf-ui "0.1.0"))
+;; Version: 0.1.5
+;; Package-Requires: ((emacs "29.1") (etaf "0.3.0") (etaf-ui "0.2.0"))
 ;; Keywords: multimedia, ui
 ;; URL: https://github.com/emacs-taf/etaf-video-player
 
@@ -28,11 +28,14 @@
 ;; `etaf-video-player-open', `etaf-video-player-open-file' and
 ;; `etaf-video-player-demo' create it, the functions below drive it,
 ;; `etaf-video-player-state' reports it as plain data, and
-;; `etaf-video-player-close' releases it.  A subtitle track beside a local
-;; video loads automatically; press c to hide, show or load one.  The default
-;; keymap binds the same commands: SPC play/pause, n step, f/b seek five
-;; seconds, +/- speed, [ and ] volume, a sound, 1-4 grid presets, F fit,
-;; o open, u url, c subtitles, d demo, ? help and q close.
+;; `etaf-video-player-close' releases it.  The buffer is an ETAF application
+;; (see `etaf-app-open'): its root keys bind the same commands, the canvas
+;; follows each settled window resize and the appearance, and closing or
+;; killing the buffer releases the player once.  A subtitle track beside a
+;; local video loads automatically; press c to hide, show or load one.  The
+;; keys are SPC play/pause, n step, f/b seek five seconds, +/- speed, [ and ]
+;; volume, a sound, 1-4 grid presets, F fit, o open, u url, c subtitles,
+;; d demo, ? help and q close.
 ;;
 ;; Only the interfaces listed below are supported for use by other packages.
 ;; All unlisted symbols and implementation features are internal, including
@@ -85,9 +88,11 @@
 ;; Function: etaf-video-player-close ()
 ;;;###autoload (autoload 'etaf-video-player-close "etaf-video-player" nil t)
 ;; Close the player in the current buffer.
-;; The status timer is cancelled, the native session and its audio sidecar
-;; are destroyed, and the ETAF Runtime is unmounted before the buffer is
-;; killed.
+;; A local video saves its playback position, the status timer is cancelled,
+;; the native session and its audio sidecar are destroyed, and the ETAF
+;; Runtime is unmounted before the buffer is killed.  Killing the buffer
+;; releases the player the same way.  Signals `user-error' outside a player
+;; buffer.
 ;;
 ;; Function: etaf-video-player-toggle-playback ()
 ;; Toggle the current player between playing and paused.

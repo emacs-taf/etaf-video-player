@@ -562,6 +562,49 @@ no buffer behind."
       (ignore-errors (delete-file log))
       (etaf-video-player-tests--cleanup))))
 
+(ert-deftest etaf-video-player-tests-canvas-and-close-follow-the-application ()
+  "The canvas follows the appearance and killing the buffer closes the player.
+Cells the shell leaves unpainted take the chrome color of the current
+appearance, T repaints them, and killing the buffer saves the playback
+position the way `q' does."
+  (etaf-video-player-tests--cleanup)
+  (let ((log (etaf-video-player-tests--log))
+        (directory (make-temp-file "etaf-video-player-close-" t))
+        (etaf-video-player-theme-mode 'dark)
+        (canvas (lambda (buffer)
+                  (with-current-buffer buffer
+                    (plist-get (car (last (alist-get 'default face-remapping-alist)))
+                               :background)))))
+    (unwind-protect
+        (let ((video (expand-file-name "close.mp4" directory)))
+          (write-region "" nil video)
+          (etaf-video-player-tests--with-fixture
+           log (list "FAKE_FFMPEG_FRAMES=800" "FAKE_FFMPEG_INTERVAL=0.02"
+                     "FAKE_FFPROBE_DURATION=60.0" "FAKE_FFPROBE_FPS=50/1")
+           (save-window-excursion
+             (let ((buffer (etaf-video-player-open
+                            (list :file video :columns 8 :rows 2 :audio nil))))
+               (should (etaf-video-player-tests--wait
+                        (lambda ()
+                          (>= (plist-get (etaf-video-player-tests--state) :presented)
+                              1))))
+               (should (equal (funcall canvas buffer) "#25272b"))
+               (with-current-buffer buffer
+                 (execute-kbd-macro (kbd "T")))
+               (should (eq etaf-video-player-theme-mode 'light))
+               (should (equal (funcall canvas buffer) "#F5F6F9"))
+               (with-current-buffer buffer
+                 (execute-kbd-macro (kbd "SPC"))
+                 (should-not (plist-get (etaf-video-player-tests--state) :playing))
+                 (etaf-video-player-seek 20))
+               (kill-buffer buffer)
+               (should-not (get-buffer "*Video Player*"))
+               (let ((saved (car (etaf-video-player-history-position video))))
+                 (should (and (numberp saved) (< 19 saved 21))))))))
+      (ignore-errors (delete-file log))
+      (etaf-video-player-tests--cleanup)
+      (ignore-errors (delete-directory directory t)))))
+
 (ert-deftest etaf-video-player-tests-open-interactively-shows-the-demo ()
   "The generic entry opens the player without asking for a video file.
 `M-x etaf-video-player-open' plays the built-in demo, so it reads nothing

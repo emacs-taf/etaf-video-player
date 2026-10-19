@@ -4,11 +4,12 @@
 
 ;;; Commentary:
 ;; The application face of the player: the mountable View over the native
-;; `etaf-video' Component and the status Host, the buffer keymap, window
-;; fitting and the public commands listed in the root entry.  Decoding,
-;; Retina-sharp image frames, the audio sidecar and publication belong to
-;; ETAF; this module keeps the canvas size, playback rate, volume, the status
-;; line and the user's keys.
+;; `etaf-video' Component and the status Host, the root keys, window fitting
+;; and the public commands listed in the root entry.  The player runs as an
+;; ETAF application (`etaf-app-open'), which owns the buffer, its canvas
+;; settings and a single close path.  Decoding, Retina-sharp image frames,
+;; the audio sidecar and publication belong to ETAF; this module keeps the
+;; canvas size, playback rate, volume, the status line and the user's keys.
 
 ;;; Code:
 
@@ -102,50 +103,36 @@ Nil derives the ratio from `frame-scale-factor' (2 on Retina), so frames are
 produced at device resolution instead of being upscaled and blurred; 1 forces
 logical-pixel frames.  The change applies to the next session restart.")
 
-(defvar etaf-video-player-mode-map
-  (let ((map (make-sparse-keymap)))
-    (dolist (binding '(("SPC" etaf-video-player-toggle-playback "播放／暂停")
-                       ("n" etaf-video-player-step "逐帧前进")
-                       ("f" etaf-video-player--forward-command "快进 5 秒")
-                       ("b" etaf-video-player--backward-command "后退 5 秒")
-                       ("+" etaf-video-player--speed-up-command "提高播放速度")
-                       ("-" etaf-video-player--speed-down-command "降低播放速度")
-                       ("[" etaf-video-player--volume-down-command "降低音量")
-                       ("]" etaf-video-player--volume-up-command "提高音量")
-                       ("a" etaf-video-player--toggle-audio-command "开启／关闭声音")
-                       ("1" etaf-video-player--preset-command "画布 64 列")
-                       ("2" etaf-video-player--preset-command "画布 96 列")
-                       ("3" etaf-video-player--preset-command "画布 128 列")
-                       ("4" etaf-video-player--preset-command "画布 176 列")
-                       (">" etaf-video-player-next "下一个视频")
-                       ("<" etaf-video-player-previous "上一个视频")
-                       ("L" etaf-video-player-toggle-loop "切换循环方式")
-                       ("s" etaf-video-player-toggle-shuffle "切换随机播放")
-                       ("F" etaf-video-player-fit "适配窗口")
-                       ("T" etaf-video-player--toggle-theme "切换深浅主题")
-                       ("o" etaf-video-player-open-file "打开视频文件")
-                       ("u" etaf-video-player-open-url "打开视频网址")
-                       ("c" etaf-video-player--subtitle-toggle-command "加载／显示字幕")
-                       ("S" etaf-video-player-save-screenshot "保存当前画面")
-                       ("d" etaf-video-player-demo "播放演示")
-                       ("C-c h" etaf-help "查看快捷键")
-                       ("q" etaf-video-player-close "关闭播放器")))
-      (define-key map (kbd (car binding))
-                  (list 'menu-item (nth 2 binding) (nth 1 binding))))
-    map)
-  "Keymap of a buffer opened by `etaf-video-player-open'.")
-
-(defvar etaf-video-player--command-maps
-  (list (cons 'etaf-video-player--player etaf-video-player-mode-map))
-  "Application bindings that must beat the renderer's own minor-mode map.
-The alist's key is `etaf-video-player--player', the buffer-local variable
-every application buffer owns, so the entry is active exactly there.")
-
-(defvar-local etaf-video-player--player nil
-  "Player owned by the current application buffer.")
-
-(defvar etaf-video-player--size-hook-installed nil
-  "Whether the window size hook was installed.")
+(defconst etaf-video-player--bindings
+  '(("SPC" etaf-video-player-toggle-playback "播放／暂停")
+    ("n" etaf-video-player-step "逐帧前进")
+    ("f" etaf-video-player--forward-command "快进 5 秒")
+    ("b" etaf-video-player--backward-command "后退 5 秒")
+    ("+" etaf-video-player--speed-up-command "提高播放速度")
+    ("-" etaf-video-player--speed-down-command "降低播放速度")
+    ("[" etaf-video-player--volume-down-command "降低音量")
+    ("]" etaf-video-player--volume-up-command "提高音量")
+    ("a" etaf-video-player--toggle-audio-command "开启／关闭声音")
+    ("1" etaf-video-player--preset-command "画布 64 列")
+    ("2" etaf-video-player--preset-command "画布 96 列")
+    ("3" etaf-video-player--preset-command "画布 128 列")
+    ("4" etaf-video-player--preset-command "画布 176 列")
+    (">" etaf-video-player-next "下一个视频")
+    ("<" etaf-video-player-previous "上一个视频")
+    ("L" etaf-video-player-toggle-loop "切换循环方式")
+    ("s" etaf-video-player-toggle-shuffle "切换随机播放")
+    ("F" etaf-video-player-fit "适配窗口")
+    ("T" etaf-video-player--toggle-theme "切换深浅主题")
+    ("o" etaf-video-player-open-file "打开视频文件")
+    ("u" etaf-video-player-open-url "打开视频网址")
+    ("c" etaf-video-player--subtitle-toggle-command "加载／显示字幕")
+    ("S" etaf-video-player-save-screenshot "保存当前画面")
+    ("d" etaf-video-player-demo "播放演示")
+    ("C-c h" etaf-help "查看快捷键")
+    ("q" etaf-video-player-close "关闭播放器"))
+  "Root keys of the player, as (KEY COMMAND LABEL).
+They beat the renderer's own minor-mode map, and a focused control keeps its
+own RET.")
 
 (cl-defstruct (etaf-video-player--player (:constructor etaf-video-player--player--make))
   "Application state for one video player buffer.
@@ -153,7 +140,7 @@ Playback lives in the native `etaf-video' session addressed by HANDLE; this
 record owns the playlist, the current item, the canvas size, the playback
 rate, the audio state and the status line."
   buffer spec handle queue index loop shuffle
-  columns rows speed audio volume window-rows
+  columns rows speed audio volume
   subtitle subtitle-file subtitle-on
   history-at
   spec-ref columns-ref rows-ref speed-ref audio-ref volume-ref
@@ -161,9 +148,14 @@ rate, the audio state and the status line."
   playing playing-ref progress-ref hud-text clock-text duration-text
   volume-text hud-timer sample sample-fps ended-seen explicit-grid stage-ref)
 
+(defun etaf-video-player--buffer-player ()
+  "Return the player of the current buffer's application, or nil."
+  (let ((state (etaf-app-state)))
+    (and (etaf-video-player--player-p state) state)))
+
 (defun etaf-video-player--current ()
   "Return the current buffer's player, or signal `user-error'."
-  (or etaf-video-player--player
+  (or (etaf-video-player--buffer-player)
       (user-error "Not an etaf-video-player buffer")))
 
 (defun etaf-video-player--clock (seconds)
@@ -439,13 +431,12 @@ its own retained geometry binding."
        (message "etaf-video-player: %s" (error-message-string problem))))))
 
 (cl-defun etaf-video-player--player-create
-    (buffer queue &key speed audio volume columns rows index loop shuffle)
-  "Create a player for BUFFER showing QUEUE.
+    (queue &key speed audio volume columns rows index loop shuffle)
+  "Create a player showing QUEUE; its buffer is set when it opens.
 QUEUE is a nonempty list of normalized source plists; INDEX selects the
 starting item.  SPEED, AUDIO, VOLUME, COLUMNS, ROWS, LOOP and SHUFFLE
 initialize the playback state."
   (let ((player (etaf-video-player--player--make
-                 :buffer buffer
                  :queue queue :index (or index 0)
                  :spec (nth (or index 0) queue)
                  :loop (or loop 'none) :shuffle (and shuffle t)
@@ -787,41 +778,15 @@ and the play/pause icon repaint without a View rebuild."
 
 (defun etaf-video-player--view (player)
   "Return the mountable View of PLAYER."
-  (etaf-view (etaf-video-player--shell :player player)))
+  (etaf-view (etaf-video-player--shell :player player
+                                       :keys etaf-video-player--bindings)))
 
-(defun etaf-video-player--show (buffer)
-  "Show BUFFER in the selected window before mounting its View.
-The native video Component measures its image canvas from the displayed
-Host, so the buffer must already be on screen when the first session is
-built; otherwise image frames are sized from font metrics and may exceed the
-canvas."
-  (let ((display-buffer-overriding-action '((display-buffer-same-window))))
-    (pop-to-buffer buffer))
-  (when-let* ((shown (get-buffer-window buffer t)))
-    (set-window-hscroll shown 0))
-  buffer)
-
-(defun etaf-video-player--window-size-changed (frame)
-  "Refit every video player shown on FRAME after a window resize.
-Lines borrowed by the minibuffer keep the canvas the player committed."
-  (dolist (window (window-list frame))
-    (with-current-buffer (window-buffer window)
-      (when etaf-video-player--player
-        (unless (etaf-transient-space-borrowed-p
-                 window (etaf-video-player--player-window-rows
-                         etaf-video-player--player))
-          (etaf-video-player--refit etaf-video-player--player window))))))
-
-(defun etaf-video-player--refit (player window)
-  "Refit PLAYER to WINDOW through the framework, then sync canvas and panes.
-The renderer republishes the viewport; the application only reads the new
-published size and measures the stage Host again."
-  (setf (etaf-video-player--player-window-rows player) (window-body-height window))
-  (when-let* ((buffer (etaf-video-player--player-buffer player))
-              (runtime (and (buffer-live-p buffer)
-                            (etaf-runtime-for-buffer buffer))))
-    (etaf-refit runtime window)
-    (etaf-video-player--sync-layout player)))
+(defun etaf-video-player--fit (player)
+  "Fit PLAYER's canvas and panes once pending publications are written.
+The application's fit function runs inside a reactive batch, where the
+stage Host still has its old geometry, so the measurement waits for the
+batch to publish."
+  (etaf-next-tick (lambda () (etaf-video-player--sync-layout player))))
 
 (defun etaf-video-player--player-set-grid (player columns rows &optional explicit)
   "Resize PLAYER's canvas to COLUMNS by ROWS and restart the producer.
@@ -860,14 +825,6 @@ update, so changing volume cannot republish the shell."
   (setf (etaf-video-player--player-audio player) (and audio t))
   (etaf-set-value (etaf-video-player--player-audio-ref player) (and audio t))
   (and audio t))
-
-(defun etaf-video-player--remap-canvas-face ()
-  "Paint this buffer's unpainted cells with the application surface color.
-Ebox paints whole character cells, so a window body that is not a whole
-number of cells keeps a sub-cell remainder at its right or bottom edge.
-Remapping the default face shows the application surface there instead of
-the frame's."
-  (face-remap-set-base 'default (list :background (etaf-video-player-color :panel2))))
 
 (defvar etaf-video-player--frame-background nil
   "Saved (FRAME . BACKGROUND) while a player paints the frame's edges.")
@@ -913,7 +870,6 @@ it in `etaf-video-player--restore-frame-background'."
     (setq etaf-video-player-theme-mode next)
     (etaf-set-value (etaf-video-player--player-theme-ref player)
                     (etaf-video-player-theme-defaults next))
-    (etaf-video-player--remap-canvas-face)
     (when-let* ((buffer (etaf-video-player--player-buffer player))
                 (window (and (buffer-live-p buffer)
                              (get-buffer-window buffer t))))
@@ -921,16 +877,20 @@ it in `etaf-video-player--restore-frame-background'."
     t))
 
 (defun etaf-video-player--player-close (player)
-  "Release PLAYER's status timer and buffer state."
+  "Release what PLAYER holds outside its View.
+The application runs this once while the View is still mounted, however the
+buffer goes away: the playback position is saved, the status timer stops
+and the frame background returns to the user's.  Unmounting afterwards
+destroys the native session and its audio sidecar."
+  (etaf-video-player--restore-frame-background)
+  ;; Closing is the last chance to save where playback stopped; a session
+  ;; that never started has nothing to save.
+  (ignore-errors
+    (etaf-video-player--player-record-position
+     player (etaf-video-player--state player) t))
   (when-let* ((timer (etaf-video-player--player-hud-timer player)))
     (cancel-timer timer)
     (setf (etaf-video-player--player-hud-timer player) nil)))
-
-(defun etaf-video-player--install-size-hook ()
-  "Install the application's window size hook once."
-  (unless etaf-video-player--size-hook-installed
-    (add-hook 'window-size-change-functions #'etaf-video-player--window-size-changed)
-    (setq etaf-video-player--size-hook-installed t)))
 
 ;;;###autoload
 (defun etaf-video-player-open (&optional source)
@@ -964,20 +924,14 @@ commands that read a file name or a URL."
       (user-error "Playback speed must be a positive number: %S" speed))
     (unless (and (numberp volume) (<= 0 volume 100))
       (user-error "Audio volume must be between 0 and 100: %S" volume))
-    (when (get-buffer etaf-video-player--buffer-name)
-      (with-current-buffer (get-buffer etaf-video-player--buffer-name)
-        (when etaf-video-player--player
-          (etaf-video-player-close))))
-    (let* ((buffer (get-buffer-create etaf-video-player--buffer-name))
-           (window (selected-window))
-           (explicit (and (integerp (plist-get hints :columns))
+    (let* ((explicit (and (integerp (plist-get hints :columns))
                           (integerp (plist-get hints :rows))))
            (grid (if explicit
                      (cons (plist-get hints :columns) (plist-get hints :rows))
                    (cons etaf-video-player--initial-columns
                          etaf-video-player--initial-rows)))
            (player (etaf-video-player--player-create
-                    buffer queue
+                    queue
                     :speed speed :audio audio :volume volume
                     :columns (car grid) :rows (cdr grid)
                     :index index
@@ -985,41 +939,34 @@ commands that read a file name or a URL."
                     :shuffle (plist-get hints :shuffle))))
       (setf (etaf-video-player--player-explicit-grid player) (and explicit t))
       (etaf-video-player--player-adopt-subtitle player (etaf-video-player--player-spec player))
-      (condition-case problem
-          (progn
-            (with-current-buffer buffer
-              (setq-local etaf-video-player--player player)
-              (setq-local mode-line-format nil)
-              (setq-local truncate-lines t)
-              (setq-local auto-hscroll-mode nil)
-              ;; A video frame owns the whole canvas; a bar or box cursor over
-              ;; an image cell would flash a border around the picture.
-              (setq-local cursor-type nil)
-              (setq-local emulation-mode-map-alists
-                          (cons 'etaf-video-player--command-maps
-                                (remq 'etaf-video-player--command-maps
-                                      emulation-mode-map-alists)))
-              (setq-local buffer-display-table
-                          (let ((table (copy-sequence (or standard-display-table
-                                                          (make-display-table)))))
-                            (set-display-table-slot table 'truncation ?\s)
-                            table))
-              (etaf-video-player--remap-canvas-face)
-              (add-hook 'kill-buffer-hook #'etaf-video-player--kill-buffer-cleanup nil t)
-              (use-local-map etaf-video-player-mode-map))
-            (etaf-video-player--show buffer)
-            (etaf-video-player--adopt-frame-background (window-frame window))
-            (etaf-mount buffer (etaf-video-player--view player))
-            (etaf-video-player--install-size-hook)
-            (etaf-video-player--sync-layout player)
-            (etaf-video-player--player-resume player)
-            (setf (etaf-video-player--player-hud-timer player)
-                  (run-at-time 0.0 etaf-video-player--hud-interval
-                               #'etaf-video-player--player-tick player))
-            buffer)
-        ((error)
-         (etaf-video-player--teardown buffer player)
-         (signal (car problem) (cdr problem)))))))
+      (let ((buffer
+             (etaf-app-open
+              etaf-video-player--buffer-name (etaf-video-player--view player)
+              :state player
+              ;; Cells the shell does not paint continue the footer chrome.
+              :background (lambda ()
+                            (plist-get (etaf-value
+                                        (etaf-video-player--player-theme-ref player))
+                                       :ui-shell-bg))
+              ;; A bar or box cursor over an image cell would flash a border
+              ;; around the picture.
+              :cursor nil
+              :on-fit (lambda (_window) (etaf-video-player--fit player))
+              :on-close (lambda () (etaf-video-player--player-close player)))))
+        (setf (etaf-video-player--player-buffer player) buffer)
+        (condition-case problem
+            (progn
+              (when-let* ((window (get-buffer-window buffer t)))
+                (etaf-video-player--adopt-frame-background (window-frame window)))
+              (etaf-video-player--sync-layout player)
+              (etaf-video-player--player-resume player)
+              (setf (etaf-video-player--player-hud-timer player)
+                    (run-at-time 0.0 etaf-video-player--hud-interval
+                                 #'etaf-video-player--player-tick player))
+              buffer)
+          ((error)
+           (etaf-app-close buffer)
+           (signal (car problem) (cdr problem))))))))
 
 ;;;###autoload
 (defun etaf-video-player-open-file (file)
@@ -1047,34 +994,11 @@ connection is retried up to five seconds."
   (interactive)
   (etaf-video-player-open '(:demo)))
 
-(defun etaf-video-player--kill-buffer-cleanup ()
-  "Release the player's frame paint and timer when its buffer is killed."
-  (etaf-video-player--restore-frame-background)
-  (when etaf-video-player--player
-    (ignore-errors (etaf-video-player--player-close etaf-video-player--player))))
-
-(defun etaf-video-player--teardown (buffer player)
-  "Release PLAYER and close BUFFER without signaling."
-  (etaf-video-player--restore-frame-background)
-  (when player
-    ;; Closing is the last chance to save where playback stopped.
-    (ignore-errors
-      (etaf-video-player--player-record-position
-       player (etaf-video-player--state player) t))
-    (ignore-errors (etaf-video-player--player-close player)))
-  (when (buffer-live-p buffer)
-    (with-current-buffer buffer
-      (setq-local etaf-video-player--player nil)
-      (ignore-errors
-        (when-let* ((runtime (etaf-runtime-for-buffer buffer)))
-          (etaf-unmount runtime)))
-      (kill-buffer buffer))))
-
 (defun etaf-video-player-close ()
   "Close the video player in the current buffer."
   (interactive)
-  (etaf-video-player--teardown (current-buffer) etaf-video-player--player)
-  t)
+  (etaf-video-player--current)
+  (etaf-app-close))
 
 (defun etaf-video-player-toggle-playback ()
   "Toggle the current player between playing and paused."
@@ -1140,11 +1064,10 @@ toggles the same state."
   (let* ((player (etaf-video-player--current))
          (window (get-buffer-window (etaf-video-player--player-buffer player) t)))
     (setf (etaf-video-player--player-explicit-grid player) nil)
-    (if window
-        (progn
-          (etaf-video-player--refit player window)
-          t)
-      (user-error "The video player buffer is not shown in a window"))))
+    (unless window
+      (user-error "The video player buffer is not shown in a window"))
+    (etaf-video-player--sync-layout player)
+    t))
 
 (defun etaf-video-player-next ()
   "Play the next playlist item.
@@ -1363,8 +1286,8 @@ Returns the parsed cues."
   (interactive
    (list (read-file-name
           "字幕文件: "
-          (let ((spec (and etaf-video-player--player
-                           (etaf-video-player--player-spec etaf-video-player--player))))
+          (let* ((player (etaf-video-player--buffer-player))
+                 (spec (and player (etaf-video-player--player-spec player))))
             (if (plist-get spec :file)
                 (file-name-directory (plist-get spec :file))
               default-directory)))))
@@ -1395,21 +1318,27 @@ player or for the built-in demo, which has no frame to capture."
          (output (or file (etaf-video-player--screenshot-output spec))))
     (unless source
       (user-error "The built-in demo has no frame to capture"))
-    (make-process
+    (etaf-process-run
+     (list etaf-video-ffmpeg-program
+           "-hide_banner" "-loglevel" "error"
+           "-ss" (format "%.3f" position)
+           "-i" source
+           "-frames:v" "1" "-y" output)
      :name "etaf-video-player-screenshot"
-     :command (list etaf-video-ffmpeg-program
-                    "-hide_banner" "-loglevel" "error"
-                    "-ss" (format "%.3f" position)
-                    "-i" source
-                    "-frames:v" "1" "-y" output)
-     :noquery t
-     :sentinel (lambda (process event)
-                 (when (memq (process-status process) '(exit signal))
-                   (if (and (eq 'exit (process-status process))
-                            (zerop (process-exit-status process))
-                            (file-readable-p output))
-                       (message "截图已保存：%s" output)
-                     (message "截图失败：%s" (string-trim event))))))
+     :callback (lambda (result)
+                 (if (and (eq (plist-get result :status) 'exit)
+                          (eql (plist-get result :exit) 0)
+                          (file-readable-p output))
+                     (message "截图已保存：%s" output)
+                   (let ((detail (string-trim
+                                  (or (plist-get result :message)
+                                      (plist-get result :stderr)
+                                      ""))))
+                     (message "截图失败：%s"
+                              (if (string-empty-p detail)
+                                  (format "ffmpeg %s %s" (plist-get result :status)
+                                          (plist-get result :exit))
+                                detail))))))
     output))
 
 (defun etaf-video-player--screenshot-output (spec)

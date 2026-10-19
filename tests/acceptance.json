@@ -72,6 +72,11 @@
       "purpose": "The documented keys drive the player through the command loop instead of the renderer's own keymap, and closing leaves no buffer."
     },
     {
+      "name": "etaf-video-player-tests-canvas-and-close-follow-the-application",
+      "file": "tests/etaf-video-player-tests.el",
+      "purpose": "Unpainted canvas cells take the chrome color of the current appearance and follow T, and killing the player buffer saves the playback position like closing it."
+    },
+    {
       "name": "etaf-video-player-tests-open-interactively-shows-the-demo",
       "file": "tests/etaf-video-player-tests.el",
       "purpose": "The generic open command reads nothing from the minibuffer and plays the built-in demo, while open-file remains the command that prompts for a name."

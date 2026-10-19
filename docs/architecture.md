@@ -2,8 +2,10 @@
 
 ## Responsibilities
 
-`etaf-video-player` is an application. It owns the buffer, the fitted canvas
-size, the audio state and volume, the status line and the keys. Decoding,
+`etaf-video-player` is an application. It owns the fitted canvas size, the
+audio state and volume, the status line and the keys; the buffer, its canvas
+settings and its single close path come from ETAF's application runtime
+(`etaf-app-open`). Decoding,
 Retina-sharp image frames, the audio sidecar and publication belong to ETAF's
 native `etaf-video` Component, which this application places in a View and
 drives through its public handle control functions. No framework mechanism is
@@ -11,7 +13,7 @@ re-implemented here.
 
 | Module | Owns |
 | --- | --- |
-| `etaf-video-player-app` | player state (canvas, rate, audio, volume, status), the View assembly, the buffer, the keymap, window fitting and the public commands |
+| `etaf-video-player-app` | player state (canvas, rate, audio, volume, status), the View assembly, the application opening and closing, the root keys, window fitting and the public commands |
 | `etaf-video-player-views` | the shell Components (header, playlist, details, transport, footer) as pure projections |
 | `etaf-video-player-theme` | the four-step palette for both appearances and the ETAF UI token projection |
 | `etaf-video-player-subtitle` | SubRip/WebVTT parsing and the cue lookup for a playback second |
@@ -23,7 +25,8 @@ internal.
 ## Data flow
 
 1. `etaf-video-player-open` normalizes and probes the source once through
-   `etaf-video-source-info`, displays the buffer, and mounts a View with the
+   `etaf-video-source-info`, opens an ETAF application that displays the
+   buffer, and mounts a View with the
    native `etaf-video` Component (`:mode 'image`) plus three status text Hosts.
    The shell is a fixed plane of absolute layers: playlist, stage, details,
    header, transport and footer.  Layer panes are what the framework's
@@ -32,10 +35,12 @@ internal.
 2. After the first publication the application reads the renderer's own
    viewport (`etaf-runtime-viewport`) and the stage Host's committed size
    (`etaf-host-ref-size`), then sizes the canvas to the measured stage and
-   positions it there.  The same sync runs after every `etaf-refit`, so a
-   resize re-measures instead of re-deriving geometry from window columns.
-   Lines borrowed by a transient minibuffer are not a resize; the committed
-   canvas stays until the prompt closes.
+   positions it there.  The application's fit function schedules the same
+   sync after every settled window change and text scaling; it waits for the
+   fitting batch to publish, so a resize re-measures the new stage instead of
+   re-deriving geometry from window columns.  Lines borrowed by a transient
+   minibuffer are not a resize, so ETAF does not call the fit function and the
+   committed canvas stays until the prompt closes.
 3. The Component owns the playback session: ffmpeg decodes at the device pixel
    size, the session keeps only the newest complete frame, and each displayed
    frame is published through `etaf-runtime-update-host-content` as image
@@ -57,11 +62,13 @@ internal.
    and rate are View props, volume, sound and speed are shared reactive
    sources the Component reads in its playback effect, and play/pause, step
    and seek call the Component's handle functions.
-7. `etaf-video-player-close` cancels the status timer, restores the frame
-   background it adopted, and unmounts the Runtime, which destroys the session
-   and its sidecar. A failed open runs the same teardown, so no partial player
-   survives a `user-error`.  Killing the buffer runs the same cleanup through
-   `kill-buffer-hook`.
+7. The application's close function restores the frame background it
+   adopted, saves the playback position and cancels the status timer while the
+   View is still mounted; unmounting then destroys the session and its
+   sidecar.  ETAF runs it once however the buffer goes away: `q`,
+   `etaf-video-player-close`, killing the buffer or opening another source.
+   A failed open closes the application too, so no partial player survives a
+   `user-error`.
 
 ## Invariants
 
@@ -85,8 +92,8 @@ internal.
   adopts the frame background color (saving and restoring the previous value)
   and every layout lane's outermost surface uses that same color, so the
   reserved pixels read as the application surface instead of the user's frame
-  background.  The buffer's default face is remapped to the same color for
-  sub-cell remainders inside the layout.
+  background.  The application canvas background follows the shell chrome
+  color of the current appearance for sub-cell remainders inside the layout.
 - **Probe once.** `etaf-video-source-info` returns authoritative metadata that
   the Component accepts as its source, so resizing or restarting a video does
   not repeat the ffprobe call.

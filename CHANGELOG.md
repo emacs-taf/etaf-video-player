@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+### Changed
+
+- The player opens as an ETAF application: its keys are root keys of the
+  View, the canvas follows the appearance and refits once a window resize
+  settles, and closing goes through the application lifecycle. It requires
+  ETAF 0.3.0 and ETAF UI 0.2.0.
+
 ### Added
 
 - `etaf-video-player-doctor` reports ffmpeg, ffprobe and SQLite availability in the
@@ -9,6 +16,13 @@
   before the player opens.
 
 ### Fixed
+
+- Killing the player buffer saves the playback position like `q`; it kept
+  only the last periodic write, so reopening could resume earlier than where
+  playback stopped.
+
+- `etaf-video-player-close` outside a player buffer signals `user-error`
+  instead of killing the current buffer.
 
 - Declare the `etaf-db` dependency. Playback history requires it, but the header
   omitted it, so `package.el` could install the player without it.
