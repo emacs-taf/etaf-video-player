@@ -7,8 +7,10 @@ at the display's device pixel ratio so Retina screens stay sharp, an ffplay
 sidecar plays the source's audio, and every frame is published through ETAF's
 retained content boundary, so one displayed frame is one incremental
 publication of a fixed canvas Host, not a full re-render. This application
-owns the buffer, the canvas size, the status line and the keys. For a
-character-only terminal player, use the companion `etaf-ascii-video`.
+owns the buffer, the canvas size, the render mode, the status line and the
+keys. Besides image frames it plays the same source as density-ramp
+characters or true-color half blocks, so a terminal session and a graphical
+one use one player.
 
 The player at a wide frame:
 
@@ -26,6 +28,12 @@ The same layout in the light appearance:
   downloaded first, and a dropped connection is retried for five seconds.
 - Retina-sharp image frames: the producer decodes at the display's device
   pixel ratio (2x on Retina) and the image is scaled back down for display.
+- Three render modes: `image` (default, a scaled picture per frame), `ascii`
+  (one density-ramp character per pixel) and `color` (two full-color pixels
+  per half-block cell, capped at `etaf-video-player-color-columns` columns so
+  the per-frame face properties stay affordable). `C` switches a running
+  player without losing its position, rate or audio state, and
+  `etaf-video-player-render-mode` picks the mode for new players.
 - Sound: an ffplay sidecar plays the source's audio track at a selectable
   volume, and pausing releases it so a long pause never catches up.
 - A canvas that fits the window (and follows resizes), four grid presets, and
@@ -54,7 +62,8 @@ The same layout in the light appearance:
 - `etaf-video-player-state` exposes the live player as plain data for scripts
   and tests.
 - Without a graphical frame the Component falls back to a density-ramp canvas,
-  so the same command still shows the video in a terminal.
+  so the same command still shows the video in a terminal; asking for
+  `ascii` or `color` explicitly gives the same characters in any frame.
 
 ## Prerequisites
 
@@ -93,6 +102,9 @@ variables documented in ETAF's manual.
 (etaf-video-player-open-file "clip.mp4") ; a local video with sound
 (etaf-video-player-open-url "https://example.com/clip.mp4") ; a network stream
 (etaf-video-player-open '(:file "clip.mp4" :columns 120 :rows 34 :volume 60))
+(etaf-video-player-open '(:file "clip.mp4" :mode 'ascii :columns 96))
+(etaf-video-player-set-render-mode 'color)       ; true-color half blocks
+(etaf-video-player-cycle-render-mode)            ; image, ascii, color
 (etaf-video-player-open '(:playlist ((:file "a.mp4") (:file "b.mp4")) :loop 'all))
 (etaf-video-player-set-audio nil)        ; watch it muted
 (etaf-video-player-subtitle-load "clip.srt")    ; attach a subtitle track

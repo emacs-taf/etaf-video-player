@@ -90,8 +90,27 @@ pixels and drawn back down at `1 / ratio`.  `frame-scale-factor` supplies the
 ratio (2 on Retina); set `etaf-video-player-device-pixel-ratio` to 1 to force
 logical-pixel frames (softer, cheaper), or to a fixed number for testing.
 Changing the variable applies to the next session restart (a resize, mode or
-source change).  This is the only mode this application uses; the density ramp
-and true-color half blocks belong to the companion `etaf-ascii-video` player.
+source change).
+
+## Render modes
+
+The player draws its source three ways.  `etaf-video-player-render-mode` picks
+the mode for the next player; `:mode` in the source plist overrides it once,
+and `C` switches a running player without losing its position, rate or audio
+state.
+
+| Mode | Picture | Notes |
+| --- | --- | --- |
+| `image` | one scaled image per frame | graphical frames only; a terminal falls back to `ascii` |
+| `ascii` | one density-ramp character per pixel | readable anywhere; `etaf-video-density-ramp` holds the ramp |
+| `color` | two true-color pixels per `▀` half-block cell | one face property per cell, so the fitted width stops at `etaf-video-player-color-columns` |
+
+Color cells cost one face property each and the renderer publishes one
+property operation per run, so the color mode caps its fitted canvas (32
+columns by default).  Set `etaf-video-player-color-columns` to nil to fit the
+whole window, or raise it for a sharper, slower picture.  An explicit
+`etaf-video-player-set-grid` is always honored, because the caller asked for
+that size.
 
 Character cells are about twice as tall as wide, so the default fitting keeps
 the video aspect ratio by sampling `rows * aspect * 2` columns. The built-in
@@ -166,6 +185,7 @@ that cannot be read signals `etaf-video-player-subtitle-error`.
 | `>`, `<` | next / previous playlist item |
 | `c` | hide, show or load subtitles |
 | `S` | save the current frame as a PNG |
+| `C` | switch render mode (image, ascii, color) |
 | `L`, `s` | loop off/list/one, shuffle |
 | `T` | switch dark/light appearance |
 | `?`, `C-c h` | searchable help in the player |

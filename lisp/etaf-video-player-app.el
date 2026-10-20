@@ -82,6 +82,22 @@ header in batch and headless runs.")
 Keys are characters, values are canvas widths in character cells; the row
 count follows the video aspect.")
 
+(defvar etaf-video-player-render-mode 'image
+  "Render mode of new players: `image', `ascii' or `color'.
+`image' draws one scaled picture per frame in a graphical frame and falls
+back to `ascii' elsewhere.  `ascii' maps each pixel to one density-ramp
+character, and `color' draws two full-color pixels per `▀' half-block cell.
+A `:mode' hint in the source plist overrides it.  Switching the mode of a
+running player keeps its position, rate and audio state.")
+
+(defvar etaf-video-player-color-columns 32
+  "Column limit applied while the render mode is `color'.
+Color content carries one `face' property per cell, and the renderer
+publishes one property operation per run, so a wide grid costs
+proportionally more per frame.  Nil fits the window like the other modes; 32
+columns keeps color playback responsive and can be raised for a sharper,
+slower picture.")
+
 (defvar etaf-video-player-audio t
   "Whether new players play their source's audio track.
 A sound card and ffplay are required; sources without an audio stream stay
@@ -127,6 +143,7 @@ logical-pixel frames.  The change applies to the next session restart.")
     ("u" etaf-video-player-open-url "打开视频网址")
     ("c" etaf-video-player--subtitle-toggle-command "加载／显示字幕")
     ("S" etaf-video-player-save-screenshot "保存当前画面")
+    ("C" etaf-video-player-cycle-render-mode "切换渲染方式")
     ("d" etaf-video-player-demo "播放演示")
     ("C-c h" etaf-help "查看快捷键")
     ("q" etaf-video-player-close "关闭播放器"))
@@ -140,10 +157,10 @@ Playback lives in the native `etaf-video' session addressed by HANDLE; this
 record owns the playlist, the current item, the canvas size, the playback
 rate, the audio state and the status line."
   buffer spec handle queue index loop shuffle
-  columns rows speed audio volume
+  columns rows speed audio volume mode
   subtitle subtitle-file subtitle-on
   history-at
-  spec-ref columns-ref rows-ref speed-ref audio-ref volume-ref
+  spec-ref columns-ref rows-ref speed-ref audio-ref volume-ref mode-ref
   queue-ref index-ref loop-ref shuffle-ref theme-ref layout-ref
   playing playing-ref progress-ref hud-text clock-text duration-text
   volume-text hud-timer sample sample-fps ended-seen explicit-grid stage-ref)
@@ -200,10 +217,22 @@ layout from window character columns.  The canvas keeps the source aspect."
            (available-height (float (max 1 (* height-rows cell-height))))
            (fit-height (min available-height (/ available-width aspect)))
            (fit-width (* fit-height aspect))
-           (columns (max 1 (floor fit-width cell-width)))
-           (rows (max 1 (floor fit-height cell-height))))
-      (cons (min columns (max 1 (floor available-width cell-width)))
-            (min rows (max 1 height-rows))))))
+           (fit-columns (max 1 (floor fit-width cell-width)))
+           (fit-rows (max 1 (floor fit-height cell-height)))
+           (columns (min fit-columns (max 1 (floor available-width cell-width))))
+           (rows (min fit-rows (max 1 height-rows))))
+      ;; True-color cells carry one face property each, so the renderer
+      ;; publishes one property operation per run; the cap keeps that cost
+      ;; proportional to a responsive frame rate.
+      (if (and (eq (etaf-value (etaf-video-player--player-mode-ref player)) 'color)
+               (integerp etaf-video-player-color-columns)
+               (> etaf-video-player-color-columns 0)
+               (> columns etaf-video-player-color-columns))
+          (let* ((limited (max 1 etaf-video-player-color-columns))
+                 (scale (* aspect (/ (float cell-height) cell-width))))
+            (cons limited
+                  (min rows (max 1 (round (/ limited scale))))))
+        (cons columns rows)))))
 
 (defun etaf-video-player--stage-facts (player runtime)
   "Return PLAYER's stage geometry as a plist, or nil before it is painted.
@@ -220,6 +249,15 @@ facts: the application never derives them from window character columns."
       (list :width (car size) :rows (cdr size)
             :left (car origin) :top (floor (cdr origin) cell-height)))))
 
+(defun etaf-video-player--stage-size (player runtime)
+  "Return PLAYER's stage size as (WIDTH-PIXELS . ROWS), or nil.
+The size is a renderer fact and needs no pointer position, so a canvas fits
+even in a frame that cannot answer `posn-at-point' (batch or headless)."
+  (when-let* ((size (etaf-host-ref-size runtime etaf-video-player--stage-ref))
+              (buffer (etaf-video-player--player-buffer player)))
+    (when (buffer-live-p buffer)
+      (cons (car size) (cdr size)))))
+
 (defun etaf-video-player--sync-layout (player)
   "Publish PLAYER's framework viewport and fit its canvas to the stage.
 The viewport is the renderer's own display-safe size, so the responsive
@@ -235,32 +273,34 @@ still centers inside the measured stage."
                      (etaf-value (etaf-video-player--player-layout-ref player)))
         (etaf-set-value (etaf-video-player--player-layout-ref player) viewport)
         (etaf-runtime-flush runtime)))
-    (when-let* ((facts (etaf-video-player--stage-facts player runtime))
+    ;; The grid comes from the measured stage alone, so a canvas fits even
+    ;; where the frame cannot report a pointer position; placement below adds
+    ;; the measured origin when the frame can.
+    (when-let* ((size (etaf-video-player--stage-size player runtime))
                 (window (get-buffer-window buffer t))
-                (frame (window-frame window)))
-      (let* ((grid (if (etaf-video-player--player-explicit-grid player)
-                       (cons (etaf-video-player--player-columns player)
-                             (etaf-video-player--player-rows player))
-                     (etaf-video-player--grid-for-stage
-                      player (cons (plist-get facts :width)
-                                   (plist-get facts :rows))))))
-        (when grid
-          ;; The canvas is one root-level absolute plane, so its offset is a
-          ;; window-pixel pair; both terms are measured, never estimated from
-          ;; window character counts.
-          (let* ((cell-width (max 1 (frame-char-width frame)))
-                 (left (+ (plist-get facts :left)
-                          (max 0 (floor (- (plist-get facts :width)
-                                           (* (car grid) cell-width))
-                                        2))))
-                 (top (+ (plist-get facts :top)
-                         (max 0 (/ (- (plist-get facts :rows) (cdr grid)) 2)))))
-            (unless (equal (cons left top)
-                           (etaf-value (etaf-video-player--player-stage-ref player)))
-              (etaf-set-value (etaf-video-player--player-stage-ref player)
-                              (cons left top))))
-          (unless (etaf-video-player--player-explicit-grid player)
-            (etaf-video-player--player-set-grid player (car grid) (cdr grid))))))
+                (frame (window-frame window))
+                (grid (if (etaf-video-player--player-explicit-grid player)
+                          (cons (etaf-video-player--player-columns player)
+                                (etaf-video-player--player-rows player))
+                        (etaf-video-player--grid-for-stage
+                         player (cons (car size) (cdr size))))))
+      (when-let* ((facts (etaf-video-player--stage-facts player runtime)))
+        ;; The canvas is one root-level absolute plane, so its offset is a
+        ;; window-pixel pair; both terms are measured, never estimated from
+        ;; window character counts.
+        (let* ((cell-width (max 1 (frame-char-width frame)))
+               (left (+ (plist-get facts :left)
+                        (max 0 (floor (- (plist-get facts :width)
+                                         (* (car grid) cell-width))
+                                      2))))
+               (top (+ (plist-get facts :top)
+                       (max 0 (/ (- (plist-get facts :rows) (cdr grid)) 2)))))
+          (unless (equal (cons left top)
+                         (etaf-value (etaf-video-player--player-stage-ref player)))
+            (etaf-set-value (etaf-video-player--player-stage-ref player)
+                            (cons left top)))))
+      (unless (etaf-video-player--player-explicit-grid player)
+        (etaf-video-player--player-set-grid player (car grid) (cdr grid))))
     t))
 
 (defun etaf-video-player--rows-for-columns (aspect columns)
@@ -431,34 +471,40 @@ its own retained geometry binding."
        (message "etaf-video-player: %s" (error-message-string problem))))))
 
 (cl-defun etaf-video-player--player-create
-    (queue &key speed audio volume columns rows index loop shuffle)
+    (queue &key speed audio volume columns rows index loop shuffle mode)
   "Create a player showing QUEUE; its buffer is set when it opens.
 QUEUE is a nonempty list of normalized source plists; INDEX selects the
-starting item.  SPEED, AUDIO, VOLUME, COLUMNS, ROWS, LOOP and SHUFFLE
+starting item.  SPEED, AUDIO, VOLUME, COLUMNS, ROWS, MODE, LOOP and SHUFFLE
 initialize the playback state."
-  (let ((player (etaf-video-player--player--make
-                 :queue queue :index (or index 0)
-                 :spec (nth (or index 0) queue)
-                 :loop (or loop 'none) :shuffle (and shuffle t)
-                 :handle (make-symbol "etaf-video-player")
-                 :columns columns :rows rows :speed speed
-                 :audio (and audio t) :volume volume
-                 :hud-text "已暂停"
-                 :clock-text "00:00"
-                 :duration-text "--:--"
-                 :volume-text (format "%d%%" volume)))
-        (playing-ref (etaf-ref nil))
-        (theme-ref (etaf-ref (etaf-video-player-theme-defaults))))
-    (setf (etaf-video-player--player-playing-ref player) playing-ref
-          (etaf-video-player--player-theme-ref player) theme-ref
-          (etaf-video-player--player-layout-ref player)
-          (etaf-ref nil :test #'equal)
-          (etaf-video-player--player-stage-ref player) (etaf-ref nil :test #'equal)
-          (etaf-video-player--player-progress-ref player) (etaf-ref 0))
+  (let ((mode (or mode etaf-video-player-render-mode))
+        (player nil))
+    (unless (memq mode '(image ascii color))
+      (user-error "Render mode must be `image', `ascii' or `color': %S" mode))
+    (setq player
+          (etaf-video-player--player--make
+           :queue queue :index (or index 0)
+           :spec (nth (or index 0) queue)
+           :loop (or loop 'none) :shuffle (and shuffle t)
+           :handle (make-symbol "etaf-video-player")
+           :columns columns :rows rows :speed speed :mode mode
+           :audio (and audio t) :volume volume
+           :hud-text "已暂停"
+           :clock-text "00:00"
+           :duration-text "--:--"
+           :volume-text (format "%d%%" volume)))
+    (let ((playing-ref (etaf-ref nil))
+          (theme-ref (etaf-ref (etaf-video-player-theme-defaults))))
+      (setf (etaf-video-player--player-playing-ref player) playing-ref
+            (etaf-video-player--player-theme-ref player) theme-ref
+            (etaf-video-player--player-layout-ref player)
+            (etaf-ref nil :test #'equal)
+            (etaf-video-player--player-stage-ref player) (etaf-ref nil :test #'equal)
+            (etaf-video-player--player-progress-ref player) (etaf-ref 0)))
     (setf (etaf-video-player--player-spec-ref player)
           (etaf-ref (etaf-video-player--player-spec player))
           (etaf-video-player--player-columns-ref player) (etaf-ref columns)
           (etaf-video-player--player-rows-ref player) (etaf-ref rows)
+          (etaf-video-player--player-mode-ref player) (etaf-ref mode)
           (etaf-video-player--player-speed-ref player) (etaf-ref speed)
           (etaf-video-player--player-audio-ref player) (etaf-ref (and audio t))
           (etaf-video-player--player-volume-ref player) (etaf-ref volume)
@@ -579,9 +625,14 @@ stays a pure function of its props."
         (cons "声音" (if (etaf-video-player--view-value audio) "开" "关"))
         (cons "音量" (format "%d%%" (etaf-video-player--view-value volume)))))
 
-(defun etaf-video-player--details-canvas (columns rows ratio)
-  "Return the canvas rows for COLUMNS by ROWS at device RATIO."
-  (list (cons "尺寸" (format "%d × %d" columns rows))
+(defun etaf-video-player--details-canvas (columns rows ratio mode)
+  "Return the canvas rows for COLUMNS by ROWS at device RATIO in MODE."
+  (list (cons "渲染" (pcase mode
+                       ('image "图像")
+                       ('ascii "字符")
+                       ('color "彩色字符")
+                       (_ (format "%s" mode))))
+        (cons "尺寸" (format "%d × %d" columns rows))
         (cons "倍率" (if (numberp ratio)
                          (format "%gx" ratio)
                        "自动"))
@@ -649,7 +700,9 @@ and the play/pause icon repaint without a View rebuild."
                     (ignore-errors (frame-scale-factor))))
          (facts (etaf-video-player--details-facts spec index (length queue)))
          (playback (etaf-video-player--details-playback speed loop shuffle audio volume))
-         (canvas-facts (etaf-video-player--details-canvas columns canvas-rows ratio))
+         (canvas-facts (etaf-video-player--details-canvas
+                        columns canvas-rows ratio
+                        (etaf-value (etaf-video-player--player-mode-ref player))))
          ;; One layer per region, so a frame repaints only the canvas plane
          ;; without re-composing surrounding flow content.  Lanes are 30ch playlist, 1ch gutter, stage, 1ch gutter,
          ;; 28ch details; every length is a design constant or the published
@@ -713,7 +766,7 @@ and the play/pause icon repaint without a View rebuild."
                    :left (list 'px stage-left-px)
                    :top (list 'lh stage-top-rows)
                    :src (etaf-value (etaf-video-player--player-spec-ref player))
-                   :mode 'image
+                   :mode (etaf-value (etaf-video-player--player-mode-ref player))
                    :columns columns
                    :rows canvas-rows
                    :speed speed
@@ -802,6 +855,17 @@ EXPLICIT records a caller-fixed grid, which later layout syncs keep."
     (etaf-batch
       (etaf-set-value (etaf-video-player--player-columns-ref player) columns)
       (etaf-set-value (etaf-video-player--player-rows-ref player) rows))))
+
+(defun etaf-video-player--player-set-mode (player mode)
+  "Switch PLAYER to render MODE: `image', `ascii' or `color'.
+The native session keeps its position, rate and audio state.  A mode change
+that cannot change the picture (the same mode) leaves the shell alone."
+  (unless (memq mode '(image ascii color))
+    (user-error "Render mode must be `image', `ascii' or `color': %S" mode))
+  (unless (eq mode (etaf-video-player--player-mode player))
+    (setf (etaf-video-player--player-mode player) mode)
+    (etaf-set-value (etaf-video-player--player-mode-ref player) mode))
+  mode)
 
 (defun etaf-video-player--player-set-speed (player speed)
   "Set PLAYER's rate to SPEED, a positive number."
@@ -893,9 +957,10 @@ destroys the native session and its audio sidecar."
   "Open the video player and return its buffer.
 SOURCE is nil for the built-in demo, a file name, an HTTP(S) URL, or a plist
 accepted by `etaf-video-source-info'.  The hints `:columns' and `:rows'
-(canvas size in character cells), `:speed' (playback rate), `:audio' and
-`:volume' are read from the plist form.  Image frames need a graphical frame;
-elsewhere the native Component falls back to a density-ramp canvas.  The
+(canvas size in character cells), `:speed' (playback rate), `:audio',
+`:volume' and `:mode' (`image', `ascii' or `color') are read from the plist
+form.  Image frames need a graphical frame; elsewhere the native Component
+falls back to a density-ramp canvas.  The
 canvas is fitted to the selected window unless both size hints are given.  An
 existing player is closed first; unreadable files, non-HTTP(S) URLs and
 unsupported sources signal `user-error' before any process starts.
@@ -909,6 +974,7 @@ commands that read a file name or a URL."
                     (plist-get hints :audio)
                   etaf-video-player-audio))
          (volume (or (plist-get hints :volume) etaf-video-player-volume))
+         (mode (or (plist-get hints :mode) etaf-video-player-render-mode))
          (sources (or (plist-get hints :playlist) (list source)))
          (index (or (plist-get hints :index) 0))
          (queue (mapcar #'etaf-video-source-info sources)))
@@ -928,7 +994,7 @@ commands that read a file name or a URL."
                          etaf-video-player--initial-rows)))
            (player (etaf-video-player--player-create
                     queue
-                    :speed speed :audio audio :volume volume
+                    :speed speed :audio audio :volume volume :mode mode
                     :columns (car grid) :rows (cdr grid)
                     :index index
                     :loop (or (plist-get hints :loop) 'none)
@@ -1019,6 +1085,39 @@ connection is retried up to five seconds."
     (etaf-video-seek (etaf-video-player--player-handle player) seconds)
     (etaf-video-player--player-render player))
   t)
+
+(defun etaf-video-player-set-render-mode (mode)
+  "Switch the current player to render MODE.
+MODE is `image' (a scaled picture per frame, falling back to `ascii' on a
+terminal), `ascii' (one density-ramp character per pixel) or `color' (two
+full-color pixels per `▀' half-block cell, capped at
+`etaf-video-player-color-columns' columns).  The video continues at its
+current position with the same rate and audio state."
+  (interactive
+   (list (intern (completing-read "Render mode: " '("image" "ascii" "color")
+                                  nil t nil nil
+                                  (symbol-name etaf-video-player-render-mode)))))
+  (let ((player (etaf-video-player--current)))
+    (etaf-video-player--player-set-mode player mode)
+    (etaf-video-player--player-render player))
+  t)
+
+(defun etaf-video-player-cycle-render-mode ()
+  "Cycle the current player through `image', `ascii' and `color'.
+The order starts from the player's current mode, so a terminal player cycles
+between the two character modes after its first switch."
+  (interactive)
+  (let* ((player (etaf-video-player--current))
+         (order '(image ascii color))
+         (mode (etaf-video-player--player-mode player))
+         (next (or (cadr (memq mode order)) (car order))))
+    (etaf-video-player--player-set-mode player next)
+    (etaf-video-player--player-render player)
+    (message "渲染方式：%s" (pcase next
+                          ('image "图像")
+                          ('ascii "字符")
+                          ('color "彩色字符")))
+    next))
 
 (defun etaf-video-player-set-speed (speed)
   "Set the current player's rate to SPEED, a positive number."
@@ -1158,7 +1257,7 @@ last remaining item cannot be removed."
 (defun etaf-video-player-state ()
   "Return the current player's state as a detached plist.
 Keys are `:source', `:playing', `:position', `:duration', `:speed',
-`:columns', `:rows', `:mode' (requested, always `image'), `:render-mode'
+`:columns', `:rows', `:mode' (the requested render mode), `:render-mode'
 (the effective mode, `ascii' on a terminal), `:fps' (display rate),
 `:presented-fps', `:source-fps', `:source-width', `:source-height',
 `:received', `:presented', `:dropped', `:audio', `:volume', `:subtitle-file'
@@ -1175,7 +1274,7 @@ outside a player buffer."
           :speed (plist-get state :speed)
           :columns (etaf-video-player--player-columns player)
           :rows (etaf-video-player--player-rows player)
-          :mode 'image
+          :mode (etaf-video-player--player-mode player)
           :render-mode (plist-get state :mode)
           :fps (plist-get state :display-fps)
           :presented-fps (or (etaf-video-player--player-sample-fps player) 0.0)

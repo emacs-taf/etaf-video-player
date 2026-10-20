@@ -11,11 +11,21 @@
 
 ### Added
 
+- Three render modes in one player: `etaf-video-player-render-mode` and the
+  `:mode` hint choose `image`, `ascii` (density ramp) or `color` (true-color
+  half blocks), and `C` switches a running player without losing its position,
+  rate or audio state.  `etaf-video-player-color-columns` caps the fitted
+  color canvas.  This replaces the separate `etaf-ascii-video` application.
+
 - `etaf-video-player-doctor` reports ffmpeg, ffprobe and SQLite availability in the
   same shape as `etaf-install-doctor`, so the installer can show what is missing
   before the player opens.
 
 ### Fixed
+
+- A canvas fits a frame that cannot answer `posn-at-point` (batch, headless or
+  a mounted-but-unshown buffer): the fitted grid comes from the measured stage
+  size and only its placement needs the pointer position.
 
 - Killing the player buffer saves the playback position like `q`; it kept
   only the last periodic write, so reopening could resume earlier than where

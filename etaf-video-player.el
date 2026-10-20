@@ -2,7 +2,7 @@
 
 ;; SPDX-License-Identifier: GPL-3.0-or-later
 ;; Author: ETAF contributors
-;; Version: 0.1.5
+;; Version: 0.2.0
 ;; Package-Requires: ((emacs "29.1") (etaf "0.3.0") (etaf-ui "0.2.0"))
 ;; Keywords: multimedia, ui
 ;; URL: https://github.com/emacs-taf/etaf-video-player
@@ -34,8 +34,13 @@
 ;; killing the buffer releases the player once.  A subtitle track beside a
 ;; local video loads automatically; press c to hide, show or load one.  The
 ;; keys are SPC play/pause, n step, f/b seek five seconds, +/- speed, [ and ]
-;; volume, a sound, 1-4 grid presets, F fit, o open, u url, c subtitles,
-;; d demo, ? help and q close.
+;; volume, a sound, 1-4 grid presets, C render mode, F fit, o open, u url,
+;; c subtitles, d demo, ? help and q close.
+;;
+;; `etaf-video-player-render-mode' picks the picture for new players: a
+;; scaled image per frame, one density-ramp character per pixel, or true-color
+;; half blocks.  The same player can switch at any time, so a terminal session
+;; and a graphical one use one application.
 ;;
 ;; Only the interfaces listed below are supported for use by other packages.
 ;; All unlisted symbols and implementation features are internal, including
@@ -120,6 +125,19 @@
 ;; Function: etaf-video-player-set-audio (audio)
 ;; Turn the current player's audio on (non-nil) or off (nil).
 ;; Sources without a reported audio stream stay silent.
+;;
+;; Function: etaf-video-player-set-render-mode (mode)
+;; Switch the current player to render MODE.
+;; MODE is `image' (a scaled picture per frame, falling back to `ascii' on a
+;; terminal), `ascii' (one density-ramp character per pixel) or `color' (two
+;; full-color pixels per `▀' half-block cell, capped at
+;; `etaf-video-player-color-columns' columns).  The video continues at its
+;; current position with the same rate and audio state.
+;;
+;; Function: etaf-video-player-cycle-render-mode ()
+;; Cycle the current player through `image', `ascii' and `color'.
+;; The order starts from the player's current mode, so a terminal player
+;; switches between the two character modes after its first change.
 ;;
 ;; Function: etaf-video-player-set-grid (columns rows)
 ;; Resize the canvas to COLUMNS by ROWS character cells.
@@ -217,7 +235,7 @@
 ;; Function: etaf-video-player-state ()
 ;; Return the current player's state as a detached plist.
 ;; Keys are `:source', `:playing', `:position', `:duration', `:speed',
-;; `:columns', `:rows', `:mode' (requested, always `image'), `:render-mode'
+;; `:columns', `:rows', `:mode' (the requested render mode), `:render-mode'
 ;; (the effective mode, `ascii' when the frame cannot show images), `:fps'
 ;; (display timer rate), `:presented-fps', `:source-fps', `:source-width',
 ;; `:source-height', `:received', `:presented', `:dropped', `:audio',
@@ -256,6 +274,20 @@
 ;; New-player appearance: `dark' (default) or `light', independent of Emacs's
 ;; theme.  Press T to switch the running player; the stage follows the
 ;; appearance while letterbox frames stay black.
+;;
+;; Variable: etaf-video-player-render-mode
+;; Render mode of new players: `image' (default), `ascii' or `color'.
+;; `image' draws one scaled picture per frame in a graphical frame and falls
+;; back to `ascii' elsewhere, `ascii' maps each pixel to one density-ramp
+;; character and `color' draws two full-color pixels per `▀' half-block cell.
+;; A `:mode' hint when opening a player overrides it; press C to switch a
+;; running player without losing its position.
+;;
+;; Variable: etaf-video-player-color-columns
+;; Column limit applied while the render mode is `color', default 32.
+;; Color content carries one `face' property per cell and the renderer
+;; publishes one property operation per run, so a wide grid costs
+;; proportionally more per frame; nil fits the window like the other modes.
 ;;
 ;; Variable: etaf-video-player-grid-presets
 ;; Canvas widths reached by the `1' to `4' keys.

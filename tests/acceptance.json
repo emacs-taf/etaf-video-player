@@ -77,6 +77,21 @@
       "purpose": "Unpainted canvas cells take the chrome color of the current appearance and follow T, and killing the player buffer saves the playback position like closing it."
     },
     {
+      "name": "etaf-video-player-tests-color-half-blocks-publish-true-colors",
+      "file": "tests/etaf-video-player-tests.el",
+      "purpose": "Color mode publishes one half-block cell per column with the two true colors of the pixel pair, so a character terminal keeps the source's colors."
+    },
+    {
+      "name": "etaf-video-player-tests-render-mode-switches-without-restarting",
+      "file": "tests/etaf-video-player-tests.el",
+      "purpose": "C changes the render mode between image, ascii and half-block color, keeps the playback place and the effective mode, and refuses an unknown mode."
+    },
+    {
+      "name": "etaf-video-player-tests-color-mode-caps-the-fitted-canvas",
+      "file": "tests/etaf-video-player-tests.el",
+      "purpose": "A fitted color canvas stops at the configured column cap while its rows follow the video aspect, bounding the per-frame face properties."
+    },
+    {
       "name": "etaf-video-player-tests-close-restores-frame-background",
       "file": "tests/etaf-video-player-tests.el",
       "purpose": "A graphic frame takes the player's chrome color while it is open and gets its own background back when the player closes."

@@ -117,6 +117,13 @@ for centering; those characters are not video pixels, on either side."
         (setq position (or (next-property-change position line end) end))))
     (substring-no-properties line (or start 0) (or cut end))))
 
+(defun etaf-video-player-tests--canvas-line ()
+  "Return the first buffer line carrying video characters, with properties."
+  (with-current-buffer "*Video Player*"
+    (cl-find-if (lambda (line)
+                  (string-match-p "[▀@]" (substring-no-properties line)))
+                (split-string (buffer-string) "\n"))))
+
 (defun etaf-video-player-tests--grid (rows)
   "Return the first ROWS visible canvas lines of the player buffer.
 The shell puts a header above the canvas, so the canvas is located by the
@@ -333,6 +340,115 @@ buffer's `default-directory'."
          (should (equal absolute (plist-get (etaf-video-player-tests--state) :source)))
          (let ((arguments (car (last (etaf-video-player-tests--runs log)))))
            (should (member absolute arguments)))
+         (etaf-video-player-close))
+      (ignore-errors (delete-file log))
+      (etaf-video-player-tests--cleanup))))
+
+(ert-deftest etaf-video-player-tests-render-mode-switches-without-restarting ()
+  "`C' changes the picture and keeps the playback place.
+`ascii' draws a density ramp, `color' draws half-block cells and `image'
+falls back to the ramp on a terminal; the position, rate and audio state
+survive every switch, and an unknown mode is refused."
+  (etaf-video-player-tests--cleanup)
+  (let ((log (etaf-video-player-tests--log)))
+    (unwind-protect
+        (etaf-video-player-tests--with-fixture
+         log
+         (list "FAKE_FFMPEG_FRAMES=800" "FAKE_FFMPEG_INTERVAL=0.02"
+               "FAKE_FFPROBE_DURATION=60.0" "FAKE_FFPROBE_FPS=50/1")
+         (let ((buffer (etaf-video-player-open
+                        (list :file etaf-video-player-tests--input
+                              :columns 16 :rows 4 :mode 'ascii))))
+           (should (etaf-video-player-tests--wait
+                    (lambda ()
+                      (>= (plist-get (etaf-video-player-tests--state) :presented) 1))))
+           (should (eq 'ascii (plist-get (etaf-video-player-tests--state) :mode)))
+           (should (eq 'ascii (plist-get (etaf-video-player-tests--state) :render-mode)))
+           (with-current-buffer buffer
+             (etaf-video-player-seek 20)
+             (execute-kbd-macro (kbd "C")))
+           (should (eq 'color (plist-get (etaf-video-player-tests--state) :mode)))
+           (should (eq 'color (plist-get (etaf-video-player-tests--state) :render-mode)))
+           (should (etaf-video-player-tests--wait
+                    (lambda ()
+                      (>= (plist-get (etaf-video-player-tests--state) :presented) 1))))
+           (should (string-match-p "▀" (etaf-video-player-tests--grid 2)))
+           (should (>= (or (plist-get (etaf-video-player-tests--state) :position) 0)
+                       19))
+           (with-current-buffer buffer
+             (execute-kbd-macro (kbd "C")))
+           (should (eq 'image (plist-get (etaf-video-player-tests--state) :mode)))
+           (should (eq 'ascii (plist-get (etaf-video-player-tests--state) :render-mode)))
+           (should-error (etaf-video-player-set-render-mode 'movie)
+                         :type 'user-error)
+           (etaf-video-player-close)))
+      (ignore-errors (delete-file log))
+      (etaf-video-player-tests--cleanup))))
+
+(ert-deftest etaf-video-player-tests-color-mode-caps-the-fitted-canvas ()
+  "A color player stops at `etaf-video-player-color-columns' columns.
+True-color cells carry one face property each, so the fitted canvas keeps
+the property volume bounded while the row count follows the video aspect.
+The cap only limits color; the character and image modes use the whole
+stage."
+  (etaf-video-player-tests--cleanup)
+  (let ((log (etaf-video-player-tests--log))
+        (video nil))
+    (unwind-protect
+        (etaf-video-player-tests--with-fixture
+         log
+         (list "FAKE_FFMPEG_FRAMES=800" "FAKE_FFMPEG_INTERVAL=0.02"
+               "FAKE_FFPROBE_DURATION=60.0" "FAKE_FFPROBE_FPS=50/1")
+         (setq video etaf-video-player-tests--input)
+         (save-window-excursion
+           (let ((etaf-video-player-color-columns 8))
+             (etaf-video-player-open
+              (list :file video :mode 'color :audio nil))
+             (should (etaf-video-player-tests--wait
+                      (lambda ()
+                        (>= (plist-get (etaf-video-player-tests--state) :presented)
+                            1))))
+             (should (= 8 (plist-get (etaf-video-player-tests--state) :columns)))
+             (should (>= (plist-get (etaf-video-player-tests--state) :rows) 1))
+             (etaf-video-player-close))
+           (let ((etaf-video-player-color-columns nil))
+             (etaf-video-player-open
+              (list :file video :mode 'color :audio nil))
+             (should (> (plist-get (etaf-video-player-tests--state) :columns)
+                        8))
+             (etaf-video-player-close))))
+      (ignore-errors (delete-file log))
+      (etaf-video-player-tests--cleanup))))
+
+(ert-deftest etaf-video-player-tests-color-half-blocks-publish-true-colors ()
+  "Color mode publishes half-block cells with per-cell true colors.
+The fixture's RGB24 pattern makes each cell's foreground and background
+predictable, and the canvas carries exactly one `▀' per column."
+  (etaf-video-player-tests--cleanup)
+  (let ((log (etaf-video-player-tests--log)))
+    (unwind-protect
+        (etaf-video-player-tests--with-fixture
+         log
+         (list "FAKE_FFMPEG_PATTERN=columns"
+               "FAKE_FFMPEG_FRAMES=400" "FAKE_FFMPEG_INTERVAL=0.02"
+               "FAKE_FFPROBE_DURATION=4.0" "FAKE_FFPROBE_FPS=50/1")
+         (etaf-video-player-open
+          (list :file etaf-video-player-tests--input
+                :columns 16 :rows 4 :mode 'color :audio nil))
+         (should (etaf-video-player-tests--wait
+                  (lambda ()
+                    (>= (plist-get (etaf-video-player-tests--state) :presented) 1))))
+         (let* ((line (etaf-video-player-tests--canvas-line))
+                (text (substring-no-properties line))
+                (start (string-match "▀" text)))
+           (should start)
+           (should (= 16 (cl-loop for index from start below (length text)
+                                  while (eq (aref text index) ?▀)
+                                  count index)))
+           (should (member '(:foreground "#000000" :background "#ff0000")
+                           (get-text-property start 'face line)))
+           (should (member '(:foreground "#111111" :background "#ee0011")
+                           (get-text-property (1+ start) 'face line))))
          (etaf-video-player-close))
       (ignore-errors (delete-file log))
       (etaf-video-player-tests--cleanup))))
