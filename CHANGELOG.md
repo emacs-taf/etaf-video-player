@@ -24,6 +24,10 @@
 - `etaf-video-player-close` outside a player buffer signals `user-error`
   instead of killing the current buffer.
 
+- Closing the player restores the frame's own background. The player saved a
+  frame parameter that does not exist, so the frame kept the player's chrome
+  color after it closed.
+
 - Declare the `etaf-db` dependency. Playback history requires it, but the header
   omitted it, so `package.el` could install the player without it.
 

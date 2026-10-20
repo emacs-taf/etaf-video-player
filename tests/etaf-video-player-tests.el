@@ -605,6 +605,41 @@ position the way `q' does."
       (etaf-video-player-tests--cleanup)
       (ignore-errors (delete-directory directory t)))))
 
+(ert-deftest etaf-video-player-tests-close-restores-frame-background ()
+  "Closing the player gives the frame its own background back.
+While open, the player paints the frame with its chrome color so the cells
+Emacs reserves at the window edges match the shell.  Graphic frames only:
+a terminal frame keeps its background throughout."
+  (skip-unless (display-graphic-p))
+  (etaf-video-player-tests--cleanup)
+  (let* ((log (etaf-video-player-tests--log))
+         (etaf-video-player-theme-mode 'dark)
+         (frame (selected-frame))
+         (original (frame-parameter frame 'background-color)))
+    (unwind-protect
+        (etaf-video-player-tests--with-fixture
+         log (list "FAKE_FFMPEG_FRAMES=400" "FAKE_FFMPEG_INTERVAL=0.02"
+                   "FAKE_FFPROBE_DURATION=8.0" "FAKE_FFPROBE_FPS=50/1")
+         (save-window-excursion
+           (etaf-video-player-open
+            (list :file etaf-video-player-tests--input :columns 16 :rows 4
+                  :audio nil))
+           ;; The frame edges continue the cells the shell leaves unpainted.
+           (let ((chrome (with-current-buffer "*Video Player*"
+                           (plist-get (car (last (alist-get 'default
+                                                            face-remapping-alist)))
+                                      :background))))
+             (should (stringp chrome))
+             (should-not (equal original chrome))
+             (should (equal (frame-parameter frame 'background-color) chrome)))
+           (with-current-buffer "*Video Player*"
+             (execute-kbd-macro (kbd "q")))
+           (should (equal (frame-parameter frame 'background-color) original))
+           (should (equal (face-background 'default frame) original))))
+      (ignore-errors (delete-file log))
+      (etaf-video-player-tests--cleanup)
+      (set-face-background 'default original frame))))
+
 (ert-deftest etaf-video-player-tests-open-interactively-shows-the-demo ()
   "The generic entry opens the player without asking for a video file.
 `M-x etaf-video-player-open' plays the built-in demo, so it reads nothing

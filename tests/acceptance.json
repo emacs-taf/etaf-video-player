@@ -77,6 +77,11 @@
       "purpose": "Unpainted canvas cells take the chrome color of the current appearance and follow T, and killing the player buffer saves the playback position like closing it."
     },
     {
+      "name": "etaf-video-player-tests-close-restores-frame-background",
+      "file": "tests/etaf-video-player-tests.el",
+      "purpose": "A graphic frame takes the player's chrome color while it is open and gets its own background back when the player closes."
+    },
+    {
       "name": "etaf-video-player-tests-open-interactively-shows-the-demo",
       "file": "tests/etaf-video-player-tests.el",
       "purpose": "The generic open command reads nothing from the minibuffer and plays the built-in demo, while open-file remains the command that prompts for a name."

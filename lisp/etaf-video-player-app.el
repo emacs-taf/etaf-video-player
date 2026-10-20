@@ -833,19 +833,17 @@ update, so changing volume cannot republish the shell."
   "Paint FRAME's unpaintable edge cells with the player's edge color.
 Emacs reserves the last character cell of every line and any partial bottom
 line, and buffer text cannot paint those pixels; they show the frame
-background.  A player that owns the frame therefore adopts the transportation
-color while it is open.  Both the frame parameter (the window-system
-background) and the default face are set, because face assertions alone do
-not reach the frame's edge pixels.  Save the previous value once and restore
-it in `etaf-video-player--restore-frame-background'."
+background.  A player that owns the frame therefore adopts the chrome color
+while it is open.  Setting the default face's background on FRAME also sets
+its `background-color' parameter, the window-system background that paints
+those edges.  Save the previous value once and restore it in
+`etaf-video-player--restore-frame-background'."
   (when (and (frame-live-p frame) (display-graphic-p frame))
     (unless etaf-video-player--frame-background
       (setq etaf-video-player--frame-background
-            (cons frame (ignore-errors (frame-parameter frame 'background)))))
+            (cons frame (frame-parameter frame 'background-color))))
     ;; Painting the frame edge is best-effort: a frame that cannot carry
     ;; the attribute simply keeps its own background.
-    (ignore-errors
-      (set-frame-parameter frame 'background (etaf-video-player-color :panel2)))
     (ignore-errors
       (set-face-attribute 'default frame
                           :background (etaf-video-player-color :panel2)))
@@ -856,8 +854,6 @@ it in `etaf-video-player--restore-frame-background'."
   (when-let* ((saved etaf-video-player--frame-background))
     (setq etaf-video-player--frame-background nil)
     (when (and (frame-live-p (car saved)) (cdr saved))
-      (ignore-errors
-        (set-frame-parameter (car saved) 'background (cdr saved)))
       (ignore-errors
         (set-face-attribute 'default (car saved) :background (cdr saved))))
     t))
