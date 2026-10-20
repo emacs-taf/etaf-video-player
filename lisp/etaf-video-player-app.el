@@ -45,11 +45,11 @@
 
 (defconst etaf-video-player--hint-line
   (concat "SPC 播放/暂停 · f/b ±5s · <> 上/下条 · +/- 速度 · [ ] 音量"
-          " · o 打开 · T 主题 · ? 全部键位 · q 关闭")
+          " · C 渲染 · o 打开 · T 主题 · ? 全部键位 · q 关闭")
   "One-line key hint shown in the footer.")
 
 (defconst etaf-video-player--hint-line-compact
-  "SPC 播放 · f/b ±5s · +/- 速度 · ? 键位 · q 关闭"
+  "SPC 播放 · f/b ±5s · C 渲染 · ? 键位 · q 关闭"
   "Short footer hint used when the window hides the playlist column.")
 
 (defconst etaf-video-player--hud-interval 0.25
