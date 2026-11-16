@@ -68,7 +68,7 @@ The playlist threshold (700) shows its column from roughly 100 columns.")
          :height '(lh 1) :overflow 'hidden
       (text :color (etaf-video-player-color :ink)
         (expr (or title "未选择来源"))))
-    (box :height '(lh 1) :font-size 16 :color (etaf-video-player-color :muted)
+    (box :height '(lh 1) :font-size 1.0 :color (etaf-video-player-color :muted)
       (text :ref status-ref :id (symbol-name status-ref)
         (expr (etaf-video-player--view-value status))))
     (etaf-button :ref 'video-theme :label "明暗" :variant 'ghost
@@ -97,10 +97,10 @@ The playlist threshold (700) shows its column from roughly 100 columns.")
       (box :height '(lh 1) :overflow 'hidden :font-weight (if active 'bold 'normal)
            :color (etaf-video-player-color (if active :accent :ink))
         (text (expr title)))
-      (box :height '(lh 1) :overflow 'hidden :font-size 16
+      (box :height '(lh 1) :overflow 'hidden :font-size 1.0
            :color (etaf-video-player-color :dim)
         (text (expr subtitle))))
-    (box :width '(ch 5) :height '(lh 1) :text-align 'right :font-size 16
+    (box :width '(ch 5) :height '(lh 1) :text-align 'right :font-size 1.0
          :color (etaf-video-player-color :muted)
       (text (expr duration)))))
 
@@ -125,7 +125,7 @@ The playlist threshold (700) shows its column from roughly 100 columns.")
        :subtitle (plist-get (cdr entry) :subtitle) :duration (plist-get (cdr entry) :duration)
        :active (= (car entry) active) :on-press (lambda () (funcall on-press (car entry)))))
     (box :flex-grow 1 :flex-basis '(lh 0) :min-height '(lh 0))
-    (box :height '(lh 1) :padding '((lh 0) (ch 2)) :font-size 16
+    (box :height '(lh 1) :padding '((lh 0) (ch 2)) :font-size 1.0
          :color (etaf-video-player-color :dim)
       (text (expr summary)))))
 
@@ -149,7 +149,7 @@ The playlist threshold (700) shows its column from roughly 100 columns.")
     (flex :height '(lh 1) :align-items 'center :gap '((lh 0) (ch 1))
       (etaf-ui-icon :name icon :set 'svg :size 0.9 :min-width 2
                     :color (etaf-video-player-color :muted))
-      (box :height '(lh 1) :font-weight 'bold :font-size 16
+      (box :height '(lh 1) :font-weight 'bold :font-size 1.0
            :color (etaf-video-player-color :muted) (text (expr title))))
     (box :height '(lh 1))
     (etaf-video-player--view-fact-rows :rows rows)))
@@ -166,7 +166,7 @@ The playlist threshold (700) shows its column from roughly 100 columns.")
         :border-left (etaf-video-player--border (etaf-video-player-color :line))
     (box :height '(lh 1) :overflow 'hidden :font-weight 'bold
       (text (expr title)))
-    (box :height '(lh 1) :overflow 'hidden :font-size 16
+    (box :height '(lh 1) :overflow 'hidden :font-size 1.0
          :color (etaf-video-player-color :muted) (text (expr source)))
     (box :height '(lh 1))
     (etaf-divider)
@@ -194,7 +194,7 @@ The playlist threshold (700) shows its column from roughly 100 columns.")
                          :min-width 3 :color (etaf-video-player-color :muted)
                          :on-color (etaf-video-player-color :accent)
                          :ref ref :help-echo help :on-press on-press)
-    (box :if label :height '(lh 1) :font-size 16 :color (etaf-video-player-color :dim)
+    (box :if label :height '(lh 1) :font-size 1.0 :color (etaf-video-player-color :dim)
       (text (expr label)))))
 
 (etaf-define-component etaf-video-player--view-progress
@@ -203,7 +203,7 @@ The playlist threshold (700) shows its column from roughly 100 columns.")
   :view
   (flex :position 'relative :width 'stretch :height '(lh 1)
         :gap '((lh 0) (ch 2)) :align-items 'center
-    (box :width '(ch 6) :height '(lh 1) :text-align 'right :font-size 16
+    (box :width '(ch 6) :height '(lh 1) :text-align 'right :font-size 1.0
          :color (etaf-video-player-color :muted)
       (text :ref time-ref :id (symbol-name time-ref)
         (expr (etaf-video-player--view-value time))))
@@ -215,7 +215,7 @@ The playlist threshold (700) shows its column from roughly 100 columns.")
                   :label "播放进度，点击或拖动跳转"
                   :color (etaf-video-player-color :accent)
                   :track-color (etaf-video-player-color :panel3) :on-commit on-seek))
-    (box :width '(ch 6) :height '(lh 1) :text-align 'right :font-size 16
+    (box :width '(ch 6) :height '(lh 1) :text-align 'right :font-size 1.0
          :color (etaf-video-player-color :muted)
       (text :ref duration-ref :id (symbol-name duration-ref)
         (expr (etaf-video-player--view-value duration))))))
@@ -258,7 +258,7 @@ The playlist threshold (700) shows its column from roughly 100 columns.")
                   :label "音量，点击或拖动调节"
                   :color (etaf-video-player-color :accent)
                   :track-color (etaf-video-player-color :panel3) :on-commit on-volume))
-    (box :width '(ch 4) :height '(lh 1) :text-align 'right :font-size 16
+    (box :width '(ch 4) :height '(lh 1) :text-align 'right :font-size 1.0
          :color (etaf-video-player-color :muted)
       (text :ref volume-ref :id (symbol-name volume-ref)
         (expr volume-text)))))
@@ -313,7 +313,7 @@ volume on the trailing edge."
   :view
   (box :position (or position 'static) :left (or left '(px 0)) :top (or top '(lh 0))
        :width (or width 'stretch) :height (or height '(lh 1))
-       :text-align 'center :overflow 'hidden :font-size 16
+       :text-align 'center :overflow 'hidden :font-size 1.0
        :background-color (etaf-video-player-color :panel2)
        :color (etaf-video-player-color :dim)
     (text (expr hints))))
