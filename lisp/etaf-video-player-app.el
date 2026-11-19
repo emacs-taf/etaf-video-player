@@ -200,6 +200,21 @@ rate, the audio state and the status line."
 (defconst etaf-video-player--initial-rows 9
   "Canvas height used until the first stage measurement completes.")
 
+(defun etaf-video-player--cell (&optional runtime)
+  "Return the cell RUNTIME draws as (CHAR-WIDTH . LINE-HEIGHT) pixels.
+A canvas mounted elsewhere states its grid in its own cells, so the frame's
+face would size a picture the renderer draws at another size."
+  (let* ((buffer (and runtime (ignore-errors (etaf-runtime-buffer runtime))))
+         (window (and buffer (buffer-live-p buffer)
+                      (get-buffer-window buffer t)))
+         (frame (if window (window-frame window) (selected-frame)))
+         (metrics (ignore-errors
+                    (if runtime (etaf-display-metrics runtime)
+                      (etaf-display-metrics)))))
+    (cons (max 1 (or (plist-get metrics :char-width) (frame-char-width frame)))
+          (max 1 (or (plist-get metrics :line-height)
+                     (frame-char-height frame))))))
+
 (defun etaf-video-player--grid-for-stage (player size)
   "Return the (COLUMNS . ROWS) canvas that fits PLAYER's measured stage SIZE.
 SIZE is the stage Host's committed (PIXELS . ROWS), so the application
@@ -211,8 +226,9 @@ layout from window character columns.  The canvas keeps the source aspect."
               (window (and (buffer-live-p buffer) (get-buffer-window buffer t)))
               (frame (and window (window-frame window))))
     (let* ((aspect (etaf-video-player--aspect (etaf-video-player--player-spec player)))
-           (cell-width (max 1 (frame-char-width frame)))
-           (cell-height (max 1 (frame-char-height frame)))
+           (cell (etaf-video-player--cell (etaf-runtime-for-buffer buffer)))
+           (cell-width (car cell))
+           (cell-height (cdr cell))
            (available-width (float (max 1 width)))
            (available-height (float (max 1 (* height-rows cell-height))))
            (fit-height (min available-height (/ available-width aspect)))
@@ -245,7 +261,8 @@ facts: the application never derives them from window character columns."
               (bounds (etaf-host-ref-bounds runtime etaf-video-player--stage-ref))
               (posn (and bounds (posn-at-point (car bounds) window))))
     (let* ((origin (posn-x-y posn))
-           (cell-height (max 1 (frame-char-height (window-frame window)))))
+           (cell-height (cdr (etaf-video-player--cell
+                              (etaf-runtime-for-buffer buffer)))))
       (list :width (car size) :rows (cdr size)
             :left (car origin) :top (floor (cdr origin) cell-height)))))
 
@@ -288,7 +305,7 @@ still centers inside the measured stage."
         ;; The canvas is one root-level absolute plane, so its offset is a
         ;; window-pixel pair; both terms are measured, never estimated from
         ;; window character counts.
-        (let* ((cell-width (max 1 (frame-char-width frame)))
+        (let* ((cell-width (car (etaf-video-player--cell runtime)))
                (left (+ (plist-get facts :left)
                         (max 0 (floor (- (plist-get facts :width)
                                          (* (car grid) cell-width))
@@ -305,8 +322,8 @@ still centers inside the measured stage."
 
 (defun etaf-video-player--rows-for-columns (aspect columns)
   "Return the row count of an ASPECT frame COLUMNS cells wide."
-  (let ((scale (* aspect (/ (float (frame-char-height (selected-frame)))
-                            (max 1 (frame-char-width (selected-frame)))))))
+  (let* ((cell (etaf-video-player--cell))
+         (scale (* aspect (/ (float (cdr cell)) (car cell)))))
     (max 3 (round (/ columns scale)))))
 
 (defun etaf-video-player--state (player)
